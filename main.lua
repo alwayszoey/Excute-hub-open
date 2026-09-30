@@ -1,9 +1,7 @@
 -- ============================================================
--- EXECUTE HUB - UNIVERSAL ROBLOX SCRIPT (FULLY FIXED)
--- Ngôn ngữ: Lua (Roblox Executor)
--- Theme: Đen - Đỏ (Black/Red)
--- Logo: https://i.postimg.cc/kGmZ8sZx/Untitled14-20260930231234.png
--- Version: v1.0.1 (fixed syntax errors, improved stability)
+-- EXECUTE HUB - RED/BLACK CARD THEME (FIXED v1.0.2)
+-- Theme: Đen - Đỏ (#ff1e27) theo UI/UX reference
+-- Fix: Speed Hack, Logo loading, Card layout
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -13,23 +11,25 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
---// CONFIG - ĐEN ĐỎ
+--// CONFIG - THEME THEO REFERENCE #ff1e27
 local CONFIG = {
     Theme = {
-        Background   = Color3.fromRGB(10, 10, 10),
-        Panel        = Color3.fromRGB(20, 20, 20),
-        Secondary    = Color3.fromRGB(28, 28, 28),
-        Accent       = Color3.fromRGB(230, 30, 30),
-        AccentHover  = Color3.fromRGB(255, 60, 60),
-        AccentDark   = Color3.fromRGB(160, 15, 15),
-        Text         = Color3.fromRGB(245, 245, 245),
-        TextDim      = Color3.fromRGB(150, 150, 150),
-        Border       = Color3.fromRGB(45, 45, 45),
-        Danger       = Color3.fromRGB(255, 0, 0)
+        Background   = Color3.fromRGB(8, 8, 10),
+        Panel        = Color3.fromRGB(18, 18, 22),
+        Card         = Color3.fromRGB(30, 30, 36),
+        CardHover    = Color3.fromRGB(42, 42, 50),
+        Accent       = Color3.fromRGB(255, 30, 39),    -- #ff1e27
+        AccentHover  = Color3.fromRGB(224, 22, 31),    -- #e0161f
+        AccentDim    = Color3.fromRGB(120, 15, 20),
+        Text         = Color3.fromRGB(255, 255, 255),
+        TextDim      = Color3.fromRGB(170, 170, 180),
+        Border       = Color3.fromRGB(60, 60, 70),
+        BorderSoft   = Color3.fromRGB(90, 90, 100)
     },
-    Logo = "https://i.postimg.cc/kGmZ8sZx/Untitled14-20260930231234.png",
+    Logo = "rbxassetid://13063138143",  -- Fallback asset ID (an toàn hơn)
+    LogoURL = "https://i.postimg.cc/kGmZ8sZx/Untitled14-20260930231234.png",
     Title = "EXECUTE HUB",
-    Version = "v1.0.1",
+    Version = "v1.0.2",
     DefaultSpeed = 16,
     MaxSpeed = 500
 }
@@ -48,32 +48,20 @@ local State = {
 local function getCharacter()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
-
 local function getHRP()
-    local char = getCharacter()
+    local char = LocalPlayer.Character
     if not char then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
-
 local function getHumanoid()
-    local char = getCharacter()
+    local char = LocalPlayer.Character
     if not char then return nil end
     return char:FindFirstChildOfClass("Humanoid")
 end
 
---// CLEAN OLD GUI
+--// CLEAN
 pcall(function()
-    if CoreGui:FindFirstChild("ExecuteHub") then
-        CoreGui.ExecuteHub:Destroy()
-    end
-end)
-pcall(function()
-    if LocalPlayer:FindFirstChild("PlayerGui") then
-        local pg = LocalPlayer.PlayerGui
-        if pg:FindFirstChild("ExecuteHub") then
-            pg.ExecuteHub:Destroy()
-        end
-    end
+    if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
 end)
 
 --// GUI ROOT
@@ -82,17 +70,16 @@ ScreenGui.Name = "ExecuteHub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
-
-local parentOk = pcall(function() ScreenGui.Parent = CoreGui end)
-if not parentOk or not ScreenGui.Parent then
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
 --// MAIN FRAME
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 540, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -270, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 560, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -280, 0.5, -200)
 MainFrame.BackgroundColor3 = CONFIG.Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -100,70 +87,74 @@ MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.CornerRadius = UDim.new(0, 16)
 MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = CONFIG.Theme.Accent
-MainStroke.Thickness = 2
-MainStroke.Transparency = 0.3
+MainStroke.Thickness = 1.5
+MainStroke.Transparency = 0.4
 MainStroke.Parent = MainFrame
 
---// GLOW EFFECT ĐỎ
+--// GLOW
 local Glow = Instance.new("Frame")
 Glow.Size = UDim2.new(1, 0, 1, 0)
-Glow.Position = UDim2.new(0, 0, 0, 0)
 Glow.BackgroundColor3 = CONFIG.Theme.Accent
-Glow.BackgroundTransparency = 0.92
+Glow.BackgroundTransparency = 0.94
 Glow.BorderSizePixel = 0
 Glow.ZIndex = 0
 Glow.Parent = MainFrame
 local GlowCorner = Instance.new("UICorner")
-GlowCorner.CornerRadius = UDim.new(0, 14)
+GlowCorner.CornerRadius = UDim.new(0, 16)
 GlowCorner.Parent = Glow
 
 --// TOP BAR
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 52)
+TopBar.Size = UDim2.new(1, 0, 0, 60)
 TopBar.BackgroundColor3 = CONFIG.Theme.Panel
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 local TopBarCorner = Instance.new("UICorner")
-TopBarCorner.CornerRadius = UDim.new(0, 14)
+TopBarCorner.CornerRadius = UDim.new(0, 16)
 TopBarCorner.Parent = TopBar
 
 local TopCover = Instance.new("Frame")
-TopCover.Size = UDim2.new(1, 0, 0, 20)
-TopCover.Position = UDim2.new(0, 0, 1, -20)
+TopCover.Size = UDim2.new(1, 0, 0, 24)
+TopCover.Position = UDim2.new(0, 0, 1, -24)
 TopCover.BackgroundColor3 = CONFIG.Theme.Panel
 TopCover.BorderSizePixel = 0
 TopCover.Parent = TopBar
 
---// LOGO VỚI VIỀN ĐỎ
+--// LOGO - SỬ DỤNG rbxassetid FALLBACK
 local LogoFrame = Instance.new("Frame")
-LogoFrame.Size = UDim2.new(0, 40, 0, 40)
-LogoFrame.Position = UDim2.new(0, 10, 0.5, -20)
+LogoFrame.Size = UDim2.new(0, 44, 0, 44)
+LogoFrame.Position = UDim2.new(0, 12, 0.5, -22)
 LogoFrame.BackgroundColor3 = CONFIG.Theme.Accent
 LogoFrame.BorderSizePixel = 0
 LogoFrame.Parent = TopBar
 local LogoFrameCorner = Instance.new("UICorner")
-LogoFrameCorner.CornerRadius = UDim.new(0, 8)
+LogoFrameCorner.CornerRadius = UDim.new(0, 10)
 LogoFrameCorner.Parent = LogoFrame
 
 local Logo = Instance.new("ImageLabel")
-Logo.Size = UDim2.new(1, -4, 1, -4)
-Logo.Position = UDim2.new(0, 2, 0, 2)
+Logo.Size = UDim2.new(1, -6, 1, -6)
+Logo.Position = UDim2.new(0, 3, 0, 3)
 Logo.BackgroundTransparency = 1
-Logo.Image = CONFIG.Logo
+Logo.Image = CONFIG.LogoURL
 Logo.Parent = LogoFrame
 local LogoCorner = Instance.new("UICorner")
-LogoCorner.CornerRadius = UDim.new(0, 6)
+LogoCorner.CornerRadius = UDim.new(0, 8)
 LogoCorner.Parent = Logo
+
+-- Fallback nếu ảnh URL không load được
+Logo.ImageFailed:Connect(function()
+    Logo.Image = "rbxassetid://6031075931"  -- icon Roblox
+end)
 
 --// TITLE
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 250, 0, 26)
-Title.Position = UDim2.new(0, 60, 0, 8)
+Title.Size = UDim2.new(0, 300, 0, 26)
+Title.Position = UDim2.new(0, 68, 0, 10)
 Title.BackgroundTransparency = 1
 Title.Text = CONFIG.Title
 Title.TextColor3 = CONFIG.Theme.Accent
@@ -173,8 +164,8 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TopBar
 
 local SubTitle = Instance.new("TextLabel")
-SubTitle.Size = UDim2.new(0, 250, 0, 14)
-SubTitle.Position = UDim2.new(0, 60, 0, 30)
+SubTitle.Size = UDim2.new(0, 300, 0, 14)
+SubTitle.Position = UDim2.new(0, 68, 0, 34)
 SubTitle.BackgroundTransparency = 1
 SubTitle.Text = CONFIG.Version .. "  •  Universal  •  Red Edition"
 SubTitle.TextColor3 = CONFIG.Theme.TextDim
@@ -183,11 +174,11 @@ SubTitle.Font = Enum.Font.Gotham
 SubTitle.TextXAlignment = Enum.TextXAlignment.Left
 SubTitle.Parent = TopBar
 
---// MINIMIZE
+--// MIN / CLOSE
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 30, 0, 30)
-MinBtn.Position = UDim2.new(1, -72, 0.5, -15)
-MinBtn.BackgroundColor3 = CONFIG.Theme.Secondary
+MinBtn.Size = UDim2.new(0, 32, 0, 32)
+MinBtn.Position = UDim2.new(1, -76, 0.5, -16)
+MinBtn.BackgroundColor3 = CONFIG.Theme.Card
 MinBtn.Text = "—"
 MinBtn.TextColor3 = CONFIG.Theme.Text
 MinBtn.TextSize = 18
@@ -195,13 +186,12 @@ MinBtn.Font = Enum.Font.GothamBold
 MinBtn.BorderSizePixel = 0
 MinBtn.Parent = TopBar
 local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinBtn
 
---// CLOSE
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -36, 0.5, -15)
+CloseBtn.Size = UDim2.new(0, 32, 0, 32)
+CloseBtn.Position = UDim2.new(1, -40, 0.5, -16)
 CloseBtn.BackgroundColor3 = CONFIG.Theme.Accent
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = CONFIG.Theme.Text
@@ -210,10 +200,9 @@ CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = TopBar
 local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseBtn
 
---// HOVER EFFECT CHO CLOSE
 CloseBtn.MouseEnter:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = CONFIG.Theme.AccentHover}):Play()
 end)
@@ -223,13 +212,12 @@ end)
 
 --// SIDEBAR
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 145, 1, -64)
-Sidebar.Position = UDim2.new(0, 0, 0, 52)
+Sidebar.Size = UDim2.new(0, 150, 1, -72)
+Sidebar.Position = UDim2.new(0, 0, 0, 60)
 Sidebar.BackgroundColor3 = CONFIG.Theme.Panel
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = MainFrame
 
---// RED LINE PHÂN CÁCH
 local Divider = Instance.new("Frame")
 Divider.Size = UDim2.new(0, 2, 1, -10)
 Divider.Position = UDim2.new(1, -2, 0, 5)
@@ -239,8 +227,8 @@ Divider.Parent = Sidebar
 
 --// CONTENT
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -150, 1, -64)
-Content.Position = UDim2.new(0, 148, 0, 52)
+Content.Size = UDim2.new(1, -160, 1, -72)
+Content.Position = UDim2.new(0, 158, 0, 60)
 Content.BackgroundColor3 = CONFIG.Theme.Background
 Content.BorderSizePixel = 0
 Content.Parent = MainFrame
@@ -251,8 +239,8 @@ local ActiveTab = nil
 
 local function createTab(name, icon)
     local Tab = Instance.new("TextButton")
-    Tab.Size = UDim2.new(1, -10, 0, 38)
-    Tab.Position = UDim2.new(0, 5, 0, (#Tabs * 44) + 8)
+    Tab.Size = UDim2.new(1, -12, 0, 40)
+    Tab.Position = UDim2.new(0, 6, 0, (#Tabs * 46) + 10)
     Tab.BackgroundColor3 = CONFIG.Theme.Panel
     Tab.Text = "   " .. icon .. "   " .. name
     Tab.TextColor3 = CONFIG.Theme.TextDim
@@ -260,6 +248,7 @@ local function createTab(name, icon)
     Tab.Font = Enum.Font.GothamMedium
     Tab.TextXAlignment = Enum.TextXAlignment.Left
     Tab.BorderSizePixel = 0
+    Tab.AutoButtonColor = false
     Tab.Parent = Sidebar
     local TabCorner = Instance.new("UICorner")
     TabCorner.CornerRadius = UDim.new(0, 8)
@@ -305,7 +294,7 @@ local function createTab(name, icon)
             t.Page.Visible = false
             t.Indicator.Visible = false
         end
-        Tab.BackgroundColor3 = CONFIG.Theme.Secondary
+        Tab.BackgroundColor3 = CONFIG.Theme.Card
         Tab.TextColor3 = CONFIG.Theme.Accent
         Page.Visible = true
         Indicator.Visible = true
@@ -314,7 +303,7 @@ local function createTab(name, icon)
 
     Tab.MouseEnter:Connect(function()
         if ActiveTab ~= name then
-            TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundColor3 = CONFIG.Theme.Secondary}):Play()
+            TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundColor3 = CONFIG.Theme.Card}):Play()
         end
     end)
     Tab.MouseLeave:Connect(function()
@@ -326,25 +315,26 @@ local function createTab(name, icon)
     return Page
 end
 
---// TOGGLE - ĐỎ ĐEN
+--// TOGGLE - CARD STYLE
 local function createToggle(parent, text, default, callback)
     local Toggle = Instance.new("Frame")
-    Toggle.Size = UDim2.new(1, 0, 0, 42)
-    Toggle.BackgroundColor3 = CONFIG.Theme.Panel
+    Toggle.Size = UDim2.new(1, 0, 0, 46)
+    Toggle.BackgroundColor3 = CONFIG.Theme.Card
     Toggle.BorderSizePixel = 0
     Toggle.Parent = parent
     local ToggleCorner = Instance.new("UICorner")
-    ToggleCorner.CornerRadius = UDim.new(0, 8)
+    ToggleCorner.CornerRadius = UDim.new(0, 10)
     ToggleCorner.Parent = Toggle
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Theme.Border
     Stroke.Thickness = 1
+    Stroke.Transparency = 0.5
     Stroke.Parent = Toggle
 
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -80, 1, 0)
-    Label.Position = UDim2.new(0, 14, 0, 0)
+    Label.Size = UDim2.new(1, -90, 1, 0)
+    Label.Position = UDim2.new(0, 16, 0, 0)
     Label.BackgroundTransparency = 1
     Label.Text = text
     Label.TextColor3 = CONFIG.Theme.Text
@@ -354,11 +344,12 @@ local function createToggle(parent, text, default, callback)
     Label.Parent = Toggle
 
     local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(0, 46, 0, 24)
-    ToggleBtn.Position = UDim2.new(1, -58, 0.5, -12)
+    ToggleBtn.Size = UDim2.new(0, 48, 0, 24)
+    ToggleBtn.Position = UDim2.new(1, -62, 0.5, -12)
     ToggleBtn.BackgroundColor3 = default and CONFIG.Theme.Accent or CONFIG.Theme.Border
     ToggleBtn.Text = ""
     ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.AutoButtonColor = false
     ToggleBtn.Parent = Toggle
     local ToggleBtnCorner = Instance.new("UICorner")
     ToggleBtnCorner.CornerRadius = UDim.new(1, 0)
@@ -366,7 +357,7 @@ local function createToggle(parent, text, default, callback)
 
     local Circle = Instance.new("Frame")
     Circle.Size = UDim2.new(0, 18, 0, 18)
-    Circle.Position = default and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    Circle.Position = default and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
     Circle.BackgroundColor3 = CONFIG.Theme.Text
     Circle.BorderSizePixel = 0
     Circle.Parent = ToggleBtn
@@ -382,10 +373,11 @@ local function createToggle(parent, text, default, callback)
             BackgroundColor3 = isOn and CONFIG.Theme.Accent or CONFIG.Theme.Border
         }):Play()
         TweenService:Create(Circle, TweenInfo.new(0.2), {
-            Position = isOn and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+            Position = isOn and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
         }):Play()
         TweenService:Create(Stroke, TweenInfo.new(0.2), {
-            Color = isOn and CONFIG.Theme.Accent or CONFIG.Theme.Border
+            Color = isOn and CONFIG.Theme.Accent or CONFIG.Theme.Border,
+            Transparency = isOn and 0.2 or 0.5
         }):Play()
         if callback then callback(isOn) end
     end)
@@ -393,25 +385,26 @@ local function createToggle(parent, text, default, callback)
     return Toggle
 end
 
---// SLIDER - ĐỎ ĐEN
+--// SLIDER - CARD STYLE
 local function createSlider(parent, text, min, max, default, callback)
     local Slider = Instance.new("Frame")
-    Slider.Size = UDim2.new(1, 0, 0, 60)
-    Slider.BackgroundColor3 = CONFIG.Theme.Panel
+    Slider.Size = UDim2.new(1, 0, 0, 70)
+    Slider.BackgroundColor3 = CONFIG.Theme.Card
     Slider.BorderSizePixel = 0
     Slider.Parent = parent
     local SliderCorner = Instance.new("UICorner")
-    SliderCorner.CornerRadius = UDim.new(0, 8)
+    SliderCorner.CornerRadius = UDim.new(0, 10)
     SliderCorner.Parent = Slider
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Theme.Border
     Stroke.Thickness = 1
+    Stroke.Transparency = 0.5
     Stroke.Parent = Slider
 
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -80, 0, 20)
-    Label.Position = UDim2.new(0, 14, 0, 8)
+    Label.Size = UDim2.new(1, -90, 0, 20)
+    Label.Position = UDim2.new(0, 16, 0, 10)
     Label.BackgroundTransparency = 1
     Label.Text = text
     Label.TextColor3 = CONFIG.Theme.Text
@@ -422,7 +415,7 @@ local function createSlider(parent, text, min, max, default, callback)
 
     local ValueLabel = Instance.new("TextLabel")
     ValueLabel.Size = UDim2.new(0, 60, 0, 20)
-    ValueLabel.Position = UDim2.new(1, -70, 0, 8)
+    ValueLabel.Position = UDim2.new(1, -76, 0, 10)
     ValueLabel.BackgroundTransparency = 1
     ValueLabel.Text = tostring(default)
     ValueLabel.TextColor3 = CONFIG.Theme.Accent
@@ -432,8 +425,8 @@ local function createSlider(parent, text, min, max, default, callback)
     ValueLabel.Parent = Slider
 
     local SliderBar = Instance.new("Frame")
-    SliderBar.Size = UDim2.new(1, -28, 0, 6)
-    SliderBar.Position = UDim2.new(0, 14, 0, 42)
+    SliderBar.Size = UDim2.new(1, -32, 0, 6)
+    SliderBar.Position = UDim2.new(0, 16, 0, 48)
     SliderBar.BackgroundColor3 = CONFIG.Theme.Border
     SliderBar.BorderSizePixel = 0
     SliderBar.Parent = Slider
@@ -451,8 +444,8 @@ local function createSlider(parent, text, min, max, default, callback)
     FillCorner.Parent = Fill
 
     local Dot = Instance.new("Frame")
-    Dot.Size = UDim2.new(0, 16, 0, 16)
-    Dot.Position = UDim2.new((default - min) / (max - min), -8, 0.5, -8)
+    Dot.Size = UDim2.new(0, 18, 0, 18)
+    Dot.Position = UDim2.new((default - min) / (max - min), -9, 0.5, -9)
     Dot.BackgroundColor3 = CONFIG.Theme.Accent
     Dot.BorderSizePixel = 0
     Dot.Parent = SliderBar
@@ -476,7 +469,7 @@ local function createSlider(parent, text, min, max, default, callback)
         local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
         local value = math.floor(min + (max - min) * pos)
         Fill.Size = UDim2.new(pos, 0, 1, 0)
-        Dot.Position = UDim2.new(pos, -8, 0.5, -8)
+        Dot.Position = UDim2.new(pos, -9, 0.5, -9)
         ValueLabel.Text = tostring(value)
         if callback then callback(value) end
     end
@@ -499,27 +492,36 @@ local function createSlider(parent, text, min, max, default, callback)
         end
     end)
 
+    SliderBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            updateValue(input)
+            dragging = true
+        end
+    end)
+
     return Slider
 end
 
---// BUTTON - ĐỎ ĐEN
+--// BUTTON - CARD STYLE
 local function createButton(parent, text, callback)
     local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(1, 0, 0, 42)
-    Button.BackgroundColor3 = CONFIG.Theme.Panel
+    Button.Size = UDim2.new(1, 0, 0, 46)
+    Button.BackgroundColor3 = CONFIG.Theme.Card
     Button.Text = text
     Button.TextColor3 = CONFIG.Theme.Text
     Button.TextSize = 13
     Button.Font = Enum.Font.GothamMedium
     Button.BorderSizePixel = 0
+    Button.AutoButtonColor = false
     Button.Parent = parent
     local ButtonCorner = Instance.new("UICorner")
-    ButtonCorner.CornerRadius = UDim.new(0, 8)
+    ButtonCorner.CornerRadius = UDim.new(0, 10)
     ButtonCorner.Parent = Button
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Theme.Border
     Stroke.Thickness = 1
+    Stroke.Transparency = 0.5
     Stroke.Parent = Button
 
     Button.MouseEnter:Connect(function()
@@ -527,7 +529,7 @@ local function createButton(parent, text, callback)
         TweenService:Create(Stroke, TweenInfo.new(0.15), {Color = CONFIG.Theme.AccentHover}):Play()
     end)
     Button.MouseLeave:Connect(function()
-        TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundColor3 = CONFIG.Theme.Panel}):Play()
+        TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundColor3 = CONFIG.Theme.Card}):Play()
         TweenService:Create(Stroke, TweenInfo.new(0.15), {Color = CONFIG.Theme.Border}):Play()
     end)
 
@@ -552,24 +554,27 @@ createToggle(MovePage, "Infinite Jump", false, function(on) State.InfiniteJumpEn
 
 local SettingsPage = createTab("Settings", "⚙️")
 createButton(SettingsPage, "Reset Character", function()
-    local char = getCharacter()
+    local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then hum.Health = 0 end
     end
 end)
-createButton(SettingsPage, "Unload Script", function()
-    ScreenGui:Destroy()
-end)
+createButton(SettingsPage, "Unload Script", function() ScreenGui:Destroy() end)
 
---// LOGIC LOOPS
+--// LOGIC - SPEED HACK (FIXED: áp dụng liên tục)
 RunService.Heartbeat:Connect(function()
     if State.SpeedEnabled then
         local hum = getHumanoid()
-        if hum then hum.WalkSpeed = State.SpeedValue end
+        if hum then
+            pcall(function()
+                hum.WalkSpeed = State.SpeedValue
+            end)
+        end
     end
 end)
 
+--// ANTI-FLING
 RunService.Heartbeat:Connect(function()
     if State.AntiFlingEnabled then
         local hrp = getHRP()
@@ -581,6 +586,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+--// ANTI-VOID
 RunService.Heartbeat:Connect(function()
     if State.AntiVoidEnabled then
         local hrp = getHRP()
@@ -590,9 +596,10 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+--// NOCLIP
 RunService.Stepped:Connect(function()
     if State.NoclipEnabled then
-        local char = getCharacter()
+        local char = LocalPlayer.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
@@ -626,7 +633,6 @@ local function startFly()
     flyConn = RunService.RenderStepped:Connect(function()
         local cam = workspace.CurrentCamera
         if not cam then return end
-
         local dir = Vector3.new(0, 0, 0)
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
@@ -660,6 +666,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+--// INFINITE JUMP
 UserInputService.JumpRequest:Connect(function()
     if State.InfiniteJumpEnabled then
         local hum = getHumanoid()
@@ -667,6 +674,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
+--// RESPAWN
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
     if State.SpeedEnabled then
@@ -683,19 +691,17 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        MainFrame.Size = UDim2.new(0, 540, 0, 52)
+        MainFrame.Size = UDim2.new(0, 560, 0, 60)
         Sidebar.Visible = false
         Content.Visible = false
     else
-        MainFrame.Size = UDim2.new(0, 540, 0, 380)
+        MainFrame.Size = UDim2.new(0, 560, 0, 400)
         Sidebar.Visible = true
         Content.Visible = true
     end
@@ -703,18 +709,18 @@ end)
 
 --// DEFAULT TAB
 if Tabs["Main"] then
-    Tabs["Main"].Button.BackgroundColor3 = CONFIG.Theme.Secondary
+    Tabs["Main"].Button.BackgroundColor3 = CONFIG.Theme.Card
     Tabs["Main"].Button.TextColor3 = CONFIG.Theme.Accent
     Tabs["Main"].Page.Visible = true
     Tabs["Main"].Indicator.Visible = true
     ActiveTab = "Main"
 end
 
---// NOTIFICATION ĐỎ
+--// NOTIFICATION
 local Notif = Instance.new("Frame")
-Notif.Size = UDim2.new(0, 320, 0, 54)
-Notif.Position = UDim2.new(0.5, -160, 0, 20)
-Notif.BackgroundColor3 = CONFIG.Theme.Panel
+Notif.Size = UDim2.new(0, 340, 0, 56)
+Notif.Position = UDim2.new(0.5, -170, 0, 20)
+Notif.BackgroundColor3 = CONFIG.Theme.Card
 Notif.BorderSizePixel = 0
 Notif.Parent = ScreenGui
 local NotifCorner = Instance.new("UICorner")
@@ -745,5 +751,5 @@ task.spawn(function()
     Notif:Destroy()
 end)
 
-print("[EXECUTE HUB] Red Edition loaded " .. CONFIG.Version)
+print("[EXECUTE HUB] Red Edition " .. CONFIG.Version .. " loaded")
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
