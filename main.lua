@@ -1,7 +1,7 @@
 -- ============================================================
--- EXECUTE HUB - v1.0.6 ANTI-FLAG SYSTEM
--- Giảm nguy cơ bị Byfron/game anti-cheat phát hiện
--- KHÔNG thể bypass Byfron 100% (kernel-level)
+-- EXECUTE HUB - v1.0.7 ANTI-BAN + SPEED FIX
+-- Fix: nhân vật di chuyển khi thả phím (BodyVelocity leak)
+-- Anti-Flag: SafeMode mặc định, cleanup tự động
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -12,27 +12,19 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- ANTI-FLAG CORE
+-- CONFIG
 -- ============================================================
-local AntiFlag = {
-    -- Tần suất cập nhật (thấp = ít bị detect, cao = mượt)
-    UpdateRate = 0.1,        -- 10 lần/giây thay vì 60
-    -- Chỉ áp dụng với game không có anti-cheat mạnh
-    SafeMode = true,         -- bật = dùng phương pháp an toàn nhất
-    -- Delay trước khi áp dụng (né initial scan)
-    StartupDelay = 3,
-    -- Tự tắt khi detect dấu hiệu bị theo dõi
-    SelfDisable = true,
-    -- Giới hạn tốc độ tối đa (tránh flag vì speed bất thường)
-    MaxSafeSpeed = 100,      -- trên mức này dễ bị flag
-    -- Randomize để tránh pattern detection
-    RandomizeOffset = true
+local Config = {
+    BgColor     = Color3.fromRGB(15, 15, 18),
+    PanelColor  = Color3.fromRGB(25, 25, 30),
+    CardColor   = Color3.fromRGB(35, 35, 42),
+    Accent      = Color3.fromRGB(255, 30, 39),
+    AccentHover = Color3.fromRGB(224, 22, 31),
+    TextColor   = Color3.fromRGB(255, 255, 255),
+    TextDim     = Color3.fromRGB(180, 180, 190),
+    BorderColor = Color3.fromRGB(70, 70, 80),
+    Version     = "v1.0.7"
 }
-
--- ============================================================
--- WAIT STARTUP DELAY
--- ============================================================
-task.wait(AntiFlag.StartupDelay)
 
 -- ============================================================
 -- STATE
@@ -46,13 +38,14 @@ local State = {
     NoclipEnabled    = false,
     InfJumpEnabled   = false,
     NpcIgnoreEnabled = false,
-    AntiFlagEnabled  = true,
+    NoCollideEnabled = false,
     AntiAfkEnabled   = true,
-    NoCollidePlayers = false
+    AntiFlagEnabled  = true,
+    SafeMode         = true     -- true = tránh bị flag, false = speed mạnh
 }
 
 -- ============================================================
--- CLEAN OLD UI
+-- CLEANUP OLD
 -- ============================================================
 pcall(function()
     if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
@@ -63,37 +56,34 @@ pcall(function()
 end)
 
 -- ============================================================
--- SAFE UTILS (không can thiệp vào memory trực tiếp)
+-- CLEANUP HELPER - xóa mọi instance script tạo
 -- ============================================================
-
--- Hàm an toàn: chỉ set thuộc tính public, không hook metatable
-local function safeSet(instance, prop, value)
-    if not instance or not instance.Parent then return end
-    pcall(function()
-        instance[prop] = value
-    end)
+local function cleanupSpeedInstances()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    for _, name in ipairs({"SpeedBV", "AntiFlingBV", "FlyBV", "FlyBG"}) do
+        local obj = hrp:FindFirstChild(name)
+        if obj then pcall(function() obj:Destroy() end) end
+    end
 end
 
--- Random offset nhỏ để tránh pattern detection
-local function randomizedSpeed(base)
-    if not AntiFlag.RandomizeOffset then return base end
-    return base + math.random(-2, 2)
+local function resetCharacterPhysics()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.WalkSpeed = 16 end)
+        pcall(function() hum.JumpPower = 50 end)
+        pcall(function() hum.PlatformStand = false end)
+    end
+    cleanupSpeedInstances()
 end
 
 -- ============================================================
--- GUI (giữ nguyên layout v1.0.5)
+-- UI ROOT
 -- ============================================================
-local Config = {
-    Color_Background  = Color3.fromRGB(15, 15, 18),
-    Color_Panel       = Color3.fromRGB(25, 25, 30),
-    Color_Card        = Color3.fromRGB(35, 35, 42),
-    Color_Accent      = Color3.fromRGB(255, 30, 39),
-    Color_Text        = Color3.fromRGB(255, 255, 255),
-    Color_TextDim     = Color3.fromRGB(180, 180, 190),
-    Color_Border      = Color3.fromRGB(70, 70, 80),
-    Version           = "v1.0.6-AF"
-}
-
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ExecuteHub"
 ScreenGui.ResetOnSpawn = false
@@ -105,10 +95,13 @@ if not ScreenGui.Parent then
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
+-- ============================================================
+-- MAIN FRAME
+-- ============================================================
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 560, 0, 440)
 Main.Position = UDim2.new(0.5, -280, 0.5, -220)
-Main.BackgroundColor3 = Config.Color_Background
+Main.BackgroundColor3 = Config.BgColor
 Main.BorderSizePixel = 0
 Main.Active = true
 Main.Draggable = true
@@ -119,15 +112,17 @@ MainCorner.CornerRadius = UDim.new(0, 14)
 MainCorner.Parent = Main
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Config.Color_Accent
+MainStroke.Color = Config.Accent
 MainStroke.Thickness = 1.5
 MainStroke.Transparency = 0.4
 MainStroke.Parent = Main
 
--- Top bar
+-- ============================================================
+-- TOP BAR
+-- ============================================================
 local Top = Instance.new("Frame")
 Top.Size = UDim2.new(1, 0, 0, 60)
-Top.BackgroundColor3 = Config.Color_Panel
+Top.BackgroundColor3 = Config.PanelColor
 Top.BorderSizePixel = 0
 Top.Parent = Main
 local TopCorner = Instance.new("UICorner")
@@ -137,14 +132,14 @@ TopCorner.Parent = Top
 local TopCover = Instance.new("Frame")
 TopCover.Size = UDim2.new(1, 0, 0, 20)
 TopCover.Position = UDim2.new(0, 0, 1, -20)
-TopCover.BackgroundColor3 = Config.Color_Panel
+TopCover.BackgroundColor3 = Config.PanelColor
 TopCover.BorderSizePixel = 0
 TopCover.Parent = Top
 
 local LogoBox = Instance.new("Frame")
 LogoBox.Size = UDim2.new(0, 44, 0, 44)
 LogoBox.Position = UDim2.new(0, 12, 0.5, -22)
-LogoBox.BackgroundColor3 = Config.Color_Accent
+LogoBox.BackgroundColor3 = Config.Accent
 LogoBox.BorderSizePixel = 0
 LogoBox.Parent = Top
 local LogoBoxCorner = Instance.new("UICorner")
@@ -155,7 +150,7 @@ local LogoText = Instance.new("TextLabel")
 LogoText.Size = UDim2.new(1, 0, 1, 0)
 LogoText.BackgroundTransparency = 1
 LogoText.Text = "EH"
-LogoText.TextColor3 = Config.Color_Text
+LogoText.TextColor3 = Config.TextColor
 LogoText.TextSize = 20
 LogoText.Font = Enum.Font.GothamBold
 LogoText.Parent = LogoBox
@@ -165,7 +160,7 @@ Title.Size = UDim2.new(0, 320, 0, 26)
 Title.Position = UDim2.new(0, 68, 0, 10)
 Title.BackgroundTransparency = 1
 Title.Text = "EXECUTE HUB"
-Title.TextColor3 = Config.Color_Accent
+Title.TextColor3 = Config.Accent
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -175,8 +170,8 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 320, 0, 14)
 SubTitle.Position = UDim2.new(0, 68, 0, 34)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = Config.Version .. "  •  Anti-Flag Mode"
-SubTitle.TextColor3 = Config.Color_TextDim
+SubTitle.Text = Config.Version .. "  •  Anti-Ban Mode"
+SubTitle.TextColor3 = Config.TextDim
 SubTitle.TextSize = 11
 SubTitle.Font = Enum.Font.Gotham
 SubTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -185,9 +180,9 @@ SubTitle.Parent = Top
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 32, 0, 32)
 CloseBtn.Position = UDim2.new(1, -40, 0.5, -16)
-CloseBtn.BackgroundColor3 = Config.Color_Accent
+CloseBtn.BackgroundColor3 = Config.Accent
 CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Config.Color_Text
+CloseBtn.TextColor3 = Config.TextColor
 CloseBtn.TextSize = 16
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.BorderSizePixel = 0
@@ -200,9 +195,9 @@ CloseCorner.Parent = CloseBtn
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 32, 0, 32)
 MinBtn.Position = UDim2.new(1, -76, 0.5, -16)
-MinBtn.BackgroundColor3 = Config.Color_Card
+MinBtn.BackgroundColor3 = Config.CardColor
 MinBtn.Text = "-"
-MinBtn.TextColor3 = Config.Color_Text
+MinBtn.TextColor3 = Config.TextColor
 MinBtn.TextSize = 20
 MinBtn.Font = Enum.Font.GothamBold
 MinBtn.BorderSizePixel = 0
@@ -212,30 +207,36 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinBtn
 
--- Sidebar
+-- ============================================================
+-- SIDEBAR
+-- ============================================================
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 150, 1, -72)
 Sidebar.Position = UDim2.new(0, 0, 0, 60)
-Sidebar.BackgroundColor3 = Config.Color_Panel
+Sidebar.BackgroundColor3 = Config.PanelColor
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
 
 local SidebarDivider = Instance.new("Frame")
 SidebarDivider.Size = UDim2.new(0, 2, 1, -20)
 SidebarDivider.Position = UDim2.new(1, -2, 0, 10)
-SidebarDivider.BackgroundColor3 = Config.Color_Accent
+SidebarDivider.BackgroundColor3 = Config.Accent
 SidebarDivider.BorderSizePixel = 0
 SidebarDivider.Parent = Sidebar
 
--- Content
+-- ============================================================
+-- CONTENT
+-- ============================================================
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -160, 1, -72)
 Content.Position = UDim2.new(0, 158, 0, 60)
-Content.BackgroundColor3 = Config.Color_Background
+Content.BackgroundColor3 = Config.BgColor
 Content.BorderSizePixel = 0
 Content.Parent = Main
 
--- UI Builders
+-- ============================================================
+-- BUILDERS
+-- ============================================================
 local Tabs = {}
 
 local function createTab(name)
@@ -245,9 +246,9 @@ local function createTab(name)
     local Tab = Instance.new("TextButton")
     Tab.Size = UDim2.new(1, -12, 0, 42)
     Tab.Position = UDim2.new(0, 6, 0, (index * 48) + 10)
-    Tab.BackgroundColor3 = Config.Color_Panel
+    Tab.BackgroundColor3 = Config.PanelColor
     Tab.Text = name
-    Tab.TextColor3 = Config.Color_TextDim
+    Tab.TextColor3 = Config.TextDim
     Tab.TextSize = 14
     Tab.Font = Enum.Font.GothamBold
     Tab.BorderSizePixel = 0
@@ -260,7 +261,7 @@ local function createTab(name)
     local Indicator = Instance.new("Frame")
     Indicator.Size = UDim2.new(0, 3, 0.6, 0)
     Indicator.Position = UDim2.new(0, 0, 0.2, 0)
-    Indicator.BackgroundColor3 = Config.Color_Accent
+    Indicator.BackgroundColor3 = Config.Accent
     Indicator.BorderSizePixel = 0
     Indicator.Visible = false
     Indicator.Parent = Tab
@@ -273,7 +274,7 @@ local function createTab(name)
     Page.BackgroundTransparency = 1
     Page.BorderSizePixel = 0
     Page.ScrollBarThickness = 4
-    Page.ScrollBarImageColor3 = Config.Color_Accent
+    Page.ScrollBarImageColor3 = Config.Accent
     Page.CanvasSize = UDim2.new(0, 0, 0, 0)
     Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
     Page.Visible = false
@@ -295,13 +296,13 @@ local function createTab(name)
 
     Tab.MouseButton1Click:Connect(function()
         for _, t in pairs(Tabs) do
-            t.Button.BackgroundColor3 = Config.Color_Panel
-            t.Button.TextColor3 = Config.Color_TextDim
+            t.Button.BackgroundColor3 = Config.PanelColor
+            t.Button.TextColor3 = Config.TextDim
             t.Page.Visible = false
             t.Indicator.Visible = false
         end
-        Tab.BackgroundColor3 = Config.Color_Card
-        Tab.TextColor3 = Config.Color_Accent
+        Tab.BackgroundColor3 = Config.CardColor
+        Tab.TextColor3 = Config.Accent
         Page.Visible = true
         Indicator.Visible = true
     end)
@@ -312,7 +313,7 @@ end
 local function createToggle(parent, text, default, callback)
     local T = Instance.new("Frame")
     T.Size = UDim2.new(1, 0, 0, 46)
-    T.BackgroundColor3 = Config.Color_Card
+    T.BackgroundColor3 = Config.CardColor
     T.BorderSizePixel = 0
     T.Parent = parent
     local TCorner = Instance.new("UICorner")
@@ -320,7 +321,7 @@ local function createToggle(parent, text, default, callback)
     TCorner.Parent = T
 
     local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Config.Color_Border
+    Stroke.Color = Config.BorderColor
     Stroke.Thickness = 1
     Stroke.Transparency = 0.5
     Stroke.Parent = T
@@ -330,7 +331,7 @@ local function createToggle(parent, text, default, callback)
     Label.Position = UDim2.new(0, 16, 0, 0)
     Label.BackgroundTransparency = 1
     Label.Text = text
-    Label.TextColor3 = Config.Color_Text
+    Label.TextColor3 = Config.TextColor
     Label.TextSize = 14
     Label.Font = Enum.Font.GothamBold
     Label.TextXAlignment = Enum.TextXAlignment.Left
@@ -339,7 +340,7 @@ local function createToggle(parent, text, default, callback)
     local Toggle = Instance.new("TextButton")
     Toggle.Size = UDim2.new(0, 48, 0, 24)
     Toggle.Position = UDim2.new(1, -62, 0.5, -12)
-    Toggle.BackgroundColor3 = default and Config.Color_Accent or Config.Color_Border
+    Toggle.BackgroundColor3 = default and Config.Accent or Config.BorderColor
     Toggle.Text = ""
     Toggle.BorderSizePixel = 0
     Toggle.AutoButtonColor = false
@@ -351,7 +352,7 @@ local function createToggle(parent, text, default, callback)
     local Circle = Instance.new("Frame")
     Circle.Size = UDim2.new(0, 18, 0, 18)
     Circle.Position = default and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
-    Circle.BackgroundColor3 = Config.Color_Text
+    Circle.BackgroundColor3 = Config.TextColor
     Circle.BorderSizePixel = 0
     Circle.Parent = Toggle
     local CircleCorner = Instance.new("UICorner")
@@ -362,7 +363,7 @@ local function createToggle(parent, text, default, callback)
     Toggle.MouseButton1Click:Connect(function()
         isOn = not isOn
         TweenService:Create(Toggle, TweenInfo.new(0.2), {
-            BackgroundColor3 = isOn and Config.Color_Accent or Config.Color_Border
+            BackgroundColor3 = isOn and Config.Accent or Config.BorderColor
         }):Play()
         TweenService:Create(Circle, TweenInfo.new(0.2), {
             Position = isOn and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
@@ -375,7 +376,7 @@ end
 local function createSlider(parent, text, min, max, default, callback)
     local S = Instance.new("Frame")
     S.Size = UDim2.new(1, 0, 0, 70)
-    S.BackgroundColor3 = Config.Color_Card
+    S.BackgroundColor3 = Config.CardColor
     S.BorderSizePixel = 0
     S.Parent = parent
     local SCorner = Instance.new("UICorner")
@@ -387,7 +388,7 @@ local function createSlider(parent, text, min, max, default, callback)
     Label.Position = UDim2.new(0, 16, 0, 10)
     Label.BackgroundTransparency = 1
     Label.Text = text
-    Label.TextColor3 = Config.Color_Text
+    Label.TextColor3 = Config.TextColor
     Label.TextSize = 14
     Label.Font = Enum.Font.GothamBold
     Label.TextXAlignment = Enum.TextXAlignment.Left
@@ -398,7 +399,7 @@ local function createSlider(parent, text, min, max, default, callback)
     ValueLabel.Position = UDim2.new(1, -76, 0, 10)
     ValueLabel.BackgroundTransparency = 1
     ValueLabel.Text = tostring(default)
-    ValueLabel.TextColor3 = Config.Color_Accent
+    ValueLabel.TextColor3 = Config.Accent
     ValueLabel.TextSize = 14
     ValueLabel.Font = Enum.Font.GothamBold
     ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
@@ -407,7 +408,7 @@ local function createSlider(parent, text, min, max, default, callback)
     local Bar = Instance.new("Frame")
     Bar.Size = UDim2.new(1, -32, 0, 6)
     Bar.Position = UDim2.new(0, 16, 0, 48)
-    Bar.BackgroundColor3 = Config.Color_Border
+    Bar.BackgroundColor3 = Config.BorderColor
     Bar.BorderSizePixel = 0
     Bar.Parent = S
     local BarCorner = Instance.new("UICorner")
@@ -416,7 +417,7 @@ local function createSlider(parent, text, min, max, default, callback)
 
     local Fill = Instance.new("Frame")
     Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    Fill.BackgroundColor3 = Config.Color_Accent
+    Fill.BackgroundColor3 = Config.Accent
     Fill.BorderSizePixel = 0
     Fill.Parent = Bar
     local FillCorner = Instance.new("UICorner")
@@ -426,7 +427,7 @@ local function createSlider(parent, text, min, max, default, callback)
     local Dot = Instance.new("Frame")
     Dot.Size = UDim2.new(0, 18, 0, 18)
     Dot.Position = UDim2.new((default - min) / (max - min), -9, 0.5, -9)
-    Dot.BackgroundColor3 = Config.Color_Accent
+    Dot.BackgroundColor3 = Config.Accent
     Dot.BorderSizePixel = 0
     Dot.Parent = Bar
     local DotCorner = Instance.new("UICorner")
@@ -436,7 +437,7 @@ local function createSlider(parent, text, min, max, default, callback)
     local DotInner = Instance.new("Frame")
     DotInner.Size = UDim2.new(1, -6, 1, -6)
     DotInner.Position = UDim2.new(0, 3, 0, 3)
-    DotInner.BackgroundColor3 = Config.Color_Text
+    DotInner.BackgroundColor3 = Config.TextColor
     DotInner.BorderSizePixel = 0
     DotInner.Parent = Dot
     local DotInnerCorner = Instance.new("UICorner")
@@ -481,9 +482,9 @@ end
 local function createButton(parent, text, callback)
     local B = Instance.new("TextButton")
     B.Size = UDim2.new(1, 0, 0, 46)
-    B.BackgroundColor3 = Config.Color_Card
+    B.BackgroundColor3 = Config.CardColor
     B.Text = text
-    B.TextColor3 = Config.Color_Text
+    B.TextColor3 = Config.TextColor
     B.TextSize = 14
     B.Font = Enum.Font.GothamBold
     B.BorderSizePixel = 0
@@ -494,10 +495,10 @@ local function createButton(parent, text, callback)
     BCorner.Parent = B
 
     B.MouseEnter:Connect(function()
-        TweenService:Create(B, TweenInfo.new(0.15), {BackgroundColor3 = Config.Color_Accent}):Play()
+        TweenService:Create(B, TweenInfo.new(0.15), {BackgroundColor3 = Config.Accent}):Play()
     end)
     B.MouseLeave:Connect(function()
-        TweenService:Create(B, TweenInfo.new(0.15), {BackgroundColor3 = Config.Color_Card}):Play()
+        TweenService:Create(B, TweenInfo.new(0.15), {BackgroundColor3 = Config.CardColor}):Play()
     end)
     B.MouseButton1Click:Connect(function()
         if callback then callback() end
@@ -505,10 +506,12 @@ local function createButton(parent, text, callback)
     return B
 end
 
--- Tabs
+-- ============================================================
+-- TABS
+-- ============================================================
 local MainPage = createTab("Main")
 createToggle(MainPage, "Speed Hack", false, function(on) State.SpeedEnabled = on end)
-createSlider(MainPage, "Speed Value", 16, 500, 16, function(v) State.SpeedValue = v end)
+createSlider(MainPage, "Speed Value", 16, 300, 16, function(v) State.SpeedValue = v end)
 createToggle(MainPage, "Anti-Fling", false, function(on) State.AntiFlingEnabled = on end)
 createToggle(MainPage, "Anti-Void", false, function(on) State.AntiVoidEnabled = on end)
 
@@ -519,38 +522,25 @@ createToggle(MovePage, "Infinite Jump", false, function(on) State.InfJumpEnabled
 
 local UniversalPage = createTab("Universal")
 createToggle(UniversalPage, "NPC Ignore", false, function(on) State.NpcIgnoreEnabled = on end)
-createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollidePlayers = on end)
+createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollideEnabled = on end)
 createToggle(UniversalPage, "Anti-AFK", true, function(on) State.AntiAfkEnabled = on end)
 
-local AntiFlagPage = createTab("Anti-Flag")
-createToggle(AntiFlagPage, "Anti-Flag System", true, function(on) State.AntiFlagEnabled = on end)
-createButton(AntiFlagPage, "Panic Cleanup (xóa mọi trace)", function()
-    -- Xóa mọi instance do script tạo
-    for _, obj in ipairs(LocalPlayer.Character:GetDescendants()) do
-        if obj.Name:match("^SpeedBV$") or obj.Name:match("^AntiFling") or obj.Name:match("^Fly") then
-            pcall(function() obj:Destroy() end)
-        end
-    end
-    -- Reset WalkSpeed về mặc định
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = 16 end
-    end
-    -- Tắt tất cả flag
+local AntiBanPage = createTab("Anti-Ban")
+createToggle(AntiBanPage, "Safe Mode (khuyến nghị)", true, function(on) State.SafeMode = on end)
+createButton(AntiBanPage, "Panic Cleanup", function()
+    resetCharacterPhysics()
     State.SpeedEnabled = false
     State.FlyEnabled = false
     State.NoclipEnabled = false
     State.AntiFlingEnabled = false
     State.AntiVoidEnabled = false
     State.NpcIgnoreEnabled = false
-    State.NoCollidePlayers = false
-    print("[ANTI-FLAG] Panic cleanup executed — all traces removed")
+    State.NoCollideEnabled = false
+    print("[ANTI-BAN] Panic cleanup executed")
 end)
-createButton(AntiFlagPage, "Fake Disconnect (an toàn)", function()
-    -- Tắt UI và reset mọi thứ
-    ScreenGui:Destroy()
-    print("[ANTI-FLAG] UI unloaded safely")
+createButton(AntiBanPage, "Reset Physics", function()
+    resetCharacterPhysics()
+    print("[ANTI-BAN] Physics reset — WalkSpeed = 16, JumpPower = 50")
 end)
 
 local SettingsPage = createTab("Settings")
@@ -562,71 +552,106 @@ createButton(SettingsPage, "Reset Character", function()
     end
 end)
 createButton(SettingsPage, "Unload Script", function()
+    resetCharacterPhysics()
     ScreenGui:Destroy()
 end)
 
--- Default tab
+-- Default
 if Tabs["Main"] then
-    Tabs["Main"].Button.BackgroundColor3 = Config.Color_Card
-    Tabs["Main"].Button.TextColor3 = Config.Color_Accent
+    Tabs["Main"].Button.BackgroundColor3 = Config.CardColor
+    Tabs["Main"].Button.TextColor3 = Config.Accent
     Tabs["Main"].Page.Visible = true
     Tabs["Main"].Indicator.Visible = true
 end
 
 -- ============================================================
--- ANTI-FLAG LOOPS
+-- SPEED HACK - FIXED (không dùng BodyVelocity nữa)
 -- ============================================================
+-- VẤN ĐỀ CŨ: BodyVelocity giữ nhân vật di chuyển mãi sau khi thả phím
+-- NGUYÊN NHÂN: BodyVelocity không tự hủy khi MoveDirection = 0
+-- FIX: Chỉ dùng Velocity injection (tự reset khi thả phím)
+--      + Destroy mọi BodyVelocity cũ khi bật/tắt
 
--- Loop chính - TẦN SUẤT THẤP (10Hz) tránh detect
+RunService.RenderStepped:Connect(function()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return end
+
+    if State.SpeedEnabled then
+        local v = State.SpeedValue
+
+        -- Safe Mode: giới hạn tốc độ
+        if State.SafeMode and v > 100 then
+            v = 100
+        end
+
+        -- Randomize ± 2 để tránh pattern detection
+        v = v + math.random(-2, 2)
+
+        -- Set WalkSpeed (cơ bản)
+        pcall(function() hum.WalkSpeed = v end)
+
+        -- Velocity injection: CHỈ khi đang di chuyển
+        -- Khi thả phím → MoveDirection = 0 → Velocity không được set → nhân vật dừng
+        if hum.MoveDirection.Magnitude > 0.1 then
+            local dir = hum.MoveDirection
+            pcall(function()
+                hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
+            end)
+        else
+            -- Khi thả phím → reset velocity ngang về 0
+            pcall(function()
+                hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
+            end)
+        end
+    else
+        -- Khi tắt Speed Hack → đảm bảo Velocity được reset
+        pcall(function()
+            hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
+        end)
+    end
+end)
+
+-- ============================================================
+-- CLEANUP LOOP - xóa mọi BodyVelocity leak mỗi 0.5s
+-- ============================================================
 task.spawn(function()
-    while task.wait(AntiFlag.UpdateRate) do
-        if not State.AntiFlagEnabled then continue end
+    while task.wait(0.5) do
+        cleanupSpeedInstances()
+    end
+end)
 
-        local char = LocalPlayer.Character
-        if not char then continue end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local hrp = char:FindFirstChild("HumanoidRootPart")
+-- ============================================================
+-- ANTI-FLING / ANTI-VOID
+-- ============================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        if State.AntiFlagEnabled then
+            local char = LocalPlayer.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
 
-        -- Speed Hack - AN TOÀN
-        if State.SpeedEnabled and hum then
-            local v = State.SpeedValue
-            -- Giới hạn tốc độ an toàn
-            if AntiFlag.SafeMode and v > AntiFlag.MaxSafeSpeed then
-                v = AntiFlag.MaxSafeSpeed
+                if State.AntiFlingEnabled and hrp then
+                    pcall(function()
+                        hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
+                    end)
+                end
+
+                if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
+                    pcall(function()
+                        hrp.CFrame = CFrame.new(0, 50, 0)
+                    end)
+                end
             end
-            -- Random offset để tránh pattern detection
-            v = randomizedSpeed(v)
-
-            pcall(function()
-                hum.WalkSpeed = v
-            end)
-
-            -- Chỉ dùng Velocity khi cần (tránh flag)
-            if not AntiFlag.SafeMode and hrp and hum.MoveDirection.Magnitude > 0.1 then
-                local dir = hum.MoveDirection
-                pcall(function()
-                    hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
-                end)
-            end
-        end
-
-        -- Anti-Fling - dùng CustomPhysicalProperties (an toàn hơn set Velocity)
-        if State.AntiFlingEnabled and hrp then
-            pcall(function()
-                hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-            end)
-        end
-
-        -- Anti-Void
-        if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
-            pcall(function()
-                hrp.CFrame = CFrame.new(0, 50, 0)
-            end)
         end
     end
 end)
 
--- Noclip loop
+-- ============================================================
+-- NOCLIP
+-- ============================================================
 task.spawn(function()
     while task.wait(0.2) do
         if State.NoclipEnabled then
@@ -642,7 +667,9 @@ task.spawn(function()
     end
 end)
 
--- NPC Ignore loop
+-- ============================================================
+-- NPC IGNORE
+-- ============================================================
 task.spawn(function()
     while task.wait(2) do
         if State.NpcIgnoreEnabled then
@@ -672,10 +699,12 @@ task.spawn(function()
     end
 end)
 
--- No Collide Players loop
+-- ============================================================
+-- NO COLLIDE PLAYERS
+-- ============================================================
 task.spawn(function()
     while task.wait(0.5) do
-        if State.NoCollidePlayers then
+        if State.NoCollideEnabled then
             for _, player in ipairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character then
                     for _, part in ipairs(player.Character:GetDescendants()) do
@@ -689,14 +718,24 @@ task.spawn(function()
     end
 end)
 
--- Fly
-local flyConn, flyCleanup
+-- ============================================================
+-- FLY - FIXED (destroy BodyVelocity khi tắt)
+-- ============================================================
+local flyConn = nil
+local flyCleanup = nil
+
 local function startFly()
     local char = LocalPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
+
+    -- Xóa BV cũ nếu có
+    local oldBV = hrp:FindFirstChild("FlyBV")
+    if oldBV then oldBV:Destroy() end
+    local oldBG = hrp:FindFirstChild("FlyBG")
+    if oldBG then oldBG:Destroy() end
 
     local bv = Instance.new("BodyVelocity")
     bv.Name = "FlyBV"
@@ -730,9 +769,12 @@ local function startFly()
     end)
 
     flyCleanup = function()
-        if flyConn then flyConn:Disconnect() end
-        if bv then bv:Destroy() end
-        if bg then bg:Destroy() end
+        if flyConn then
+            flyConn:Disconnect()
+            flyConn = nil
+        end
+        if bv and bv.Parent then bv:Destroy() end
+        if bg and bg.Parent then bg:Destroy() end
         if hum then hum.PlatformStand = false end
     end
 end
@@ -742,12 +784,12 @@ RunService.Heartbeat:Connect(function()
         startFly()
     elseif not State.FlyEnabled and flyConn then
         if flyCleanup then flyCleanup() end
-        flyConn = nil
-        flyCleanup = nil
     end
 end)
 
--- Infinite Jump
+-- ============================================================
+-- INFINITE JUMP
+-- ============================================================
 UserInputService.JumpRequest:Connect(function()
     if State.InfJumpEnabled then
         local char = LocalPlayer.Character
@@ -758,7 +800,9 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- Anti-AFK
+-- ============================================================
+-- ANTI-AFK
+-- ============================================================
 local VirtualUser = game:GetService("VirtualUser")
 LocalPlayer.Idled:Connect(function()
     if State.AntiAfkEnabled then
@@ -767,8 +811,33 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- Buttons
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+-- ============================================================
+-- CHARACTER RESPAWN CLEANUP
+-- ============================================================
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    -- Reset state khi respawn
+    if flyCleanup then
+        flyCleanup()
+        flyConn = nil
+        flyCleanup = nil
+    end
+    if State.SpeedEnabled then
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = State.SpeedValue end
+        end
+    end
+end)
+
+-- ============================================================
+-- BUTTONS
+-- ============================================================
+CloseBtn.MouseButton1Click:Connect(function()
+    resetCharacterPhysics()
+    ScreenGui:Destroy()
+end)
 
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
@@ -778,7 +847,9 @@ MinBtn.MouseButton1Click:Connect(function()
     Content.Visible = not minimized
 end)
 
--- Keybind
+-- ============================================================
+-- KEYBIND
+-- ============================================================
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.RightControl then
@@ -786,4 +857,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("[EXECUTE HUB] v1.0.6-AF loaded — Anti-Flag Mode")
+print("[EXECUTE HUB] v1.0.7 loaded — Anti-Ban + Speed Fix")
