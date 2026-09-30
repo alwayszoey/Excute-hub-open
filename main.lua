@@ -21,7 +21,7 @@ local Config = {
     DiscordUserID  = "957930752249589770",
 
     -- ===== BOT SERVER (chính) =====
-    BotURL    = "https://fi16.bot-hosting.cloud:25483/upload",
+    BotURL    = "http://fi16.bot-hosting.cloud:25483/upload",
     BotAPIKey = "jKtzB900cL2xQFltx0w08IluCqXN7AqW",
     UseBot    = true,
 
