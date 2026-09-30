@@ -1,7 +1,7 @@
 -- ============================================================
--- EXECUTE HUB - v1.2.0 (STEAL AN EGG / ANIME VANGUARDS EDITION)
--- Bỏ dump system. Thêm: Auto Rebirth, Skip Zone Lock, Instant Use
--- Fix: Speed, Fly, Noclip cho mọi map
+-- EXECUTE HUB - v1.3.0 SPEED + ANTIBAN PRO
+-- Bỏ Universal/NPC Ignore. Chỉ Speed + Anti-Ban chuyên nghiệp
+-- Anti-Ban: Randomize, Jitter, Bypass detection
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -10,7 +10,6 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
 
 -- ============================================================
 -- CONFIG
@@ -24,32 +23,94 @@ local Config = {
     TextColor   = Color3.fromRGB(255, 255, 255),
     TextDim     = Color3.fromRGB(180, 180, 190),
     BorderColor = Color3.fromRGB(70, 70, 80),
-    Version     = "v1.2.0-Instant"
+    Version     = "v1.3.0-Pro"
 }
 
 -- ============================================================
 -- STATE
 -- ============================================================
 local State = {
-    SpeedEnabled        = false,
-    SpeedValue          = 16,
-    AntiFlingEnabled    = false,
-    AntiVoidEnabled     = false,
-    FlyEnabled          = false,
-    NoclipEnabled       = false,
-    InfJumpEnabled      = false,
-    NpcIgnoreEnabled    = false,
-    NoCollideEnabled    = false,
-    AntiAfkEnabled      = true,
-    SafeMode            = true,
-    -- NEW FEATURES
-    AutoRebirthEnabled  = false,
-    AutoRebirthDelay    = 0.5,
-    SkipZoneLockEnabled = false,
-    InstantUseEnabled   = false,
-    SkipMaturityEnabled = false,
-    AutoHatchEnabled    = false
+    SpeedEnabled      = false,
+    SpeedValue        = 16,
+    AntiFlingEnabled  = false,
+    AntiVoidEnabled   = false,
+    FlyEnabled        = false,
+    NoclipEnabled     = false,
+    InfJumpEnabled    = false,
+    AntiAfkEnabled    = true,
+    -- ANTI-BAN PRO
+    AntiBanEnabled    = true,
+    JitterEnabled     = true,       -- Random offset mỗi frame
+    RateLimitEnabled  = true,       -- Chỉ update 20 lần/s (không 60)
+    VelocityBypass    = true,       -- Dùng velocity thay WalkSpeed khi cần
+    LegitMode         = false,      -- Speed giả lập người chơi thật
+    MaxSpeed          = 250,        -- Trần speed tối đa (không cho hack quá)
+    SpeedRampUp       = true        -- Tăng dần thay vì nhảy đột ngột
 }
+
+-- ============================================================
+-- ANTI-BAN PRO CORE
+-- ============================================================
+local AntiBan = {
+    -- Tick counter để rate limit
+    tick = 0,
+    -- Speed history để phát hiện pattern
+    speedHistory = {},
+    -- Random seed
+    seed = 0,
+    -- Ramp-up state
+    currentRampSpeed = 16
+}
+
+-- Jitter: random offset nhỏ ±2 (giống player thật)
+local function getJitteredSpeed(base)
+    if not State.JitterEnabled then return base end
+    local jitter = math.random(-2, 2)
+    -- Đôi khi không jitter (10% cases)
+    if math.random(1, 10) == 1 then jitter = 0 end
+    return base + jitter
+end
+
+-- Rate limiter: chỉ update mỗi 3 frame (20Hz)
+local function shouldUpdate()
+    if not State.RateLimitEnabled then return true end
+    AntiBan.tick = (AntiBan.tick + 1) % 3
+    return AntiBan.tick == 0
+end
+
+-- Ramp-up: tăng tốc từ từ thay vì nhảy ngay
+local function getRampSpeed(target)
+    if not State.SpeedRampUp then return target end
+    local diff = target - AntiBan.currentRampSpeed
+    if math.abs(diff) < 0.5 then
+        AntiBan.currentRampSpeed = target
+        return target
+    end
+    -- Tăng/giảm mỗi frame 5% của diff
+    AntiBan.currentRampSpeed = AntiBan.currentRampSpeed + diff * 0.05
+    return math.floor(AntiBan.currentRampSpeed)
+end
+
+-- Legit mode: giới hạn speed bằng ngưỡng an toàn
+local function applyLegitCap(speed)
+    if not State.LegitMode then return speed end
+    -- Giới hạn như người chơi bình thường: max 60
+    if speed > 60 then return 60 end
+    return speed
+end
+
+-- Phát hiện server-side velocity check
+local function isServerChecking()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    -- Nếu WalkSpeed bị server reset về 16 → server check
+    if State.SpeedEnabled and hum.WalkSpeed == 16 and State.SpeedValue > 20 then
+        return true
+    end
+    return false
+end
 
 -- ============================================================
 -- CLEANUP
@@ -169,7 +230,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 320, 0, 14)
 SubTitle.Position = UDim2.new(0, 68, 0, 34)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = Config.Version .. "  •  Instant Edition"
+SubTitle.Text = Config.Version .. "  •  Speed Pro"
 SubTitle.TextColor3 = Config.TextDim
 SubTitle.TextSize = 11
 SubTitle.Font = Enum.Font.Gotham
@@ -526,326 +587,116 @@ local function notify(text, isError)
 end
 
 -- ============================================================
--- UNIVERSAL TELEPORT FUNCTION
+-- SPEED TAB
 -- ============================================================
-local function teleportToCFrame(targetCFrame)
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    pcall(function()
-        hrp.CFrame = targetCFrame
-    end)
-    return true
-end
+local SpeedPage = createTab("Speed")
 
-local function teleportToPosition(position)
-    return teleportToCFrame(CFrame.new(position))
-end
+createToggle(SpeedPage, "⚡ Speed Hack", false, function(on) 
+    State.SpeedEnabled = on 
+    if not on then AntiBan.currentRampSpeed = 16 end
+end)
 
--- ============================================================
--- ZONE UNLOCK (bypass Rebirth Required gate)
--- ============================================================
-local function unlockAllZones()
-    -- Method 1: Tìm các barrier/gate có tên chứa "Rebirth", "Required", "Lock"
-    local barrierKeywords = {"Rebirth", "Required", "Gate", "Barrier", "Lock", "Wall", "Invisible"}
-    local touched = 0
-    
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            for _, keyword in ipairs(barrierKeywords) do
-                if string.find(obj.Name, keyword, 1, true) then
-                    pcall(function()
-                        if obj:IsA("BasePart") then
-                            obj.CanCollide = false
-                            obj.CanTouch = false
-                            obj.CanQuery = false
-                            obj.Transparency = 1
-                        elseif obj:IsA("Model") then
-                            for _, part in ipairs(obj:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.CanCollide = false
-                                    part.CanTouch = false
-                                    part.CanQuery = false
-                                    part.Transparency = 1
-                                end
-                            end
-                        end
-                    end)
-                    touched = touched + 1
-                    break
-                end
-            end
-        end
+createSlider(SpeedPage, "Speed Value", 16, 500, 16, function(v) 
+    State.SpeedValue = v 
+    -- Reset ramp khi user kéo slider
+    if v < AntiBan.currentRampSpeed then
+        AntiBan.currentRampSpeed = v
     end
-    return touched
-end
+end)
+
+createButton(SpeedPage, "🚀 Quick Speed 100", function()
+    State.SpeedValue = 100
+    State.SpeedEnabled = true
+    notify("⚡ Speed set to 100", false)
+end)
+
+createButton(SpeedPage, "🚀 Quick Speed 200", function()
+    State.SpeedValue = 200
+    State.SpeedEnabled = true
+    notify("⚡ Speed set to 200", false)
+end)
+
+createButton(SpeedPage, "🛑 Reset Speed to 16", function()
+    State.SpeedValue = 16
+    State.SpeedEnabled = false
+    AntiBan.currentRampSpeed = 16
+    resetCharacterPhysics()
+    notify("✅ Speed reset", false)
+end)
 
 -- ============================================================
--- INSTANT USE - Fire mọi ProximityPrompt trong tầm xa
+-- MOVEMENT TAB
 -- ============================================================
-local function instantUseAll()
-    local fired = 0
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            pcall(function()
-                -- Bypass hold duration
-                obj.HoldDuration = 0
-                obj.MaxActivationDistance = math.huge
-                obj.RequiresLineOfSight = false
-                -- Fire prompt
-                if fireproximityprompt then
-                    fireproximityprompt(obj)
-                    fired = fired + 1
-                end
-            end)
-        elseif obj:IsA("ClickDetector") then
-            pcall(function()
-                obj.MaxActivationDistance = math.huge
-                if fireclickdetector then
-                    fireclickdetector(obj)
-                    fired = fired + 1
-                end
-            end)
-        end
-    end
-    return fired
-end
-
--- ============================================================
--- AUTO REBIRTH - Tìm và fire remote rebirth
--- ============================================================
-local function tryAutoRebirth()
-    local fired = 0
-    -- Method 1: Tìm RemoteEvent chứa "Rebirth"
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            local name = string.lower(obj.Name)
-            if string.find(name, "rebirth", 1, true) or string.find(name, "prestige", 1, true) then
-                pcall(function()
-                    if obj:IsA("RemoteEvent") then
-                        obj:FireServer()
-                    else
-                        obj:InvokeServer()
-                    end
-                    fired = fired + 1
-                end)
-            end
-        end
-    end
-    -- Method 2: Tìm Button UI chứa text "Rebirth"
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if playerGui then
-        for _, gui in ipairs(playerGui:GetDescendants()) do
-            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-                local text = ""
-                if gui:IsA("TextButton") then text = gui.Text end
-                if string.find(string.lower(text), "rebirth", 1, true) then
-                    pcall(function()
-                        gui:Activate()
-                        fired = fired + 1
-                    end)
-                end
-            end
-        end
-    end
-    return fired
-end
-
--- ============================================================
--- SKIP ANIME MATURITY - Set Growth/Level lên max
--- ============================================================
-local function skipMaturity()
-    local set = 0
-    -- Method 1: Set attribute Level/Growth/Age trên player
-    pcall(function()
-        for _, attr in ipairs({"Level", "Growth", "Age", "Maturity", "Stage", "Evolution"}) do
-            LocalPlayer:SetAttribute(attr, 9999)
-            set = set + 1
-        end
-    end)
-    -- Method 2: Set trên leaderstats
-    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-    if leaderstats then
-        for _, stat in ipairs(leaderstats:GetChildren()) do
-            local name = string.lower(stat.Name)
-            if string.find(name, "level", 1, true) or string.find(name, "growth", 1, true) 
-                or string.find(name, "age", 1, true) or string.find(name, "maturity", 1, true)
-                or string.find(name, "evolution", 1, true) then
-                pcall(function()
-                    stat.Value = 999999
-                    set = set + 1
-                end)
-            end
-        end
-    end
-    -- Method 3: Set trên character attributes
-    local char = LocalPlayer.Character
-    if char then
-        pcall(function()
-            for _, attr in ipairs({"Level", "Growth", "Age", "Maturity"}) do
-                char:SetAttribute(attr, 9999)
-                set = set + 1
-            end
-        end)
-    end
-    return set
-end
-
--- ============================================================
--- AUTO HATCH - Fire tất cả trứng trong tầm
--- ============================================================
-local function autoHatch()
-    local hatched = 0
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") or obj:IsA("BasePart") then
-            local name = string.lower(obj.Name)
-            if string.find(name, "egg", 1, true) or string.find(name, "hatch", 1, true) then
-                -- Fire prompt/click trên egg
-                pcall(function()
-                    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                    if prompt and fireproximityprompt then
-                        fireproximityprompt(prompt)
-                        hatched = hatched + 1
-                    end
-                    local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-                    if click and fireclickdetector then
-                        fireclickdetector(click)
-                        hatched = hatched + 1
-                    end
-                end)
-            end
-        end
-    end
-    return hatched
-end
-
--- ============================================================
--- TABS
--- ============================================================
-local MainPage = createTab("Main")
-createToggle(MainPage, "Speed Hack", false, function(on) State.SpeedEnabled = on end)
-createSlider(MainPage, "Speed Value", 16, 300, 16, function(v) State.SpeedValue = v end)
-createToggle(MainPage, "Anti-Fling", false, function(on) State.AntiFlingEnabled = on end)
-createToggle(MainPage, "Anti-Void", false, function(on) State.AntiVoidEnabled = on end)
-
 local MovePage = createTab("Movement")
 createToggle(MovePage, "Fly", false, function(on) State.FlyEnabled = on end)
 createToggle(MovePage, "Noclip", false, function(on) State.NoclipEnabled = on end)
 createToggle(MovePage, "Infinite Jump", false, function(on) State.InfJumpEnabled = on end)
+createToggle(MovePage, "Anti-Fling", false, function(on) State.AntiFlingEnabled = on end)
+createToggle(MovePage, "Anti-Void", false, function(on) State.AntiVoidEnabled = on end)
 
 -- ============================================================
--- PROGRESS TAB (NEW - Instant features)
--- ============================================================
-local ProgressPage = createTab("Progress")
-
-createToggle(ProgressPage, "🚀 Auto Rebirth", false, function(on) State.AutoRebirthEnabled = on end)
-createSlider(ProgressPage, "Rebirth Delay (s)", 1, 30, 1, function(v) State.AutoRebirthDelay = v end)
-createButton(ProgressPage, "⚡ Rebirth Ngay Bây Giờ", function()
-    local fired = tryAutoRebirth()
-    if fired > 0 then notify("✅ Rebirth fired (" .. fired .. " remotes)", false)
-    else notify("⚠️ Không tìm thấy rebirth remote", true) end
-end)
-
-createToggle(ProgressPage, "🔓 Skip Zone Lock (Rebirth Required)", false, function(on) State.SkipZoneLockEnabled = on end)
-createButton(ProgressPage, "🔓 Mở Khóa Tất Cả Zone Ngay", function()
-    local touched = unlockAllZones()
-    if touched > 0 then notify("✅ Đã mở " .. touched .. " barrier", false)
-    else notify("⚠️ Không tìm thấy barrier", true) end
-end)
-
-createToggle(ProgressPage, "⏩ Skip Anime Maturity", false, function(on) State.SkipMaturityEnabled = on end)
-createButton(ProgressPage, "⏩ Max Level Ngay", function()
-    local set = skipMaturity()
-    if set > 0 then notify("✅ Đã set " .. set .. " stats", false)
-    else notify("⚠️ Không tìm thấy stat để set", true) end
-end)
-
-createToggle(ProgressPage, "🔥 Instant Use (mọi ProximityPrompt)", false, function(on) State.InstantUseEnabled = on end)
-createButton(ProgressPage, "🔥 Fire All Prompts Ngay", function()
-    local fired = instantUseAll()
-    if fired > 0 then notify("✅ Đã fire " .. fired .. " prompt", false)
-    else notify("⚠️ Không có prompt nào", true) end
-end)
-
-createToggle(ProgressPage, "🥚 Auto Hatch Eggs", false, function(on) State.AutoHatchEnabled = on end)
-createButton(ProgressPage, "🥚 Hatch Ngay", function()
-    local hatched = autoHatch()
-    if hatched > 0 then notify("✅ Đã hatch " .. hatched .. " egg", false)
-    else notify("⚠️ Không tìm thấy egg", true) end
-end)
-
--- ============================================================
--- UNIVERSAL TAB
--- ============================================================
-local UniversalPage = createTab("Universal")
-createToggle(UniversalPage, "NPC Ignore", false, function(on) State.NpcIgnoreEnabled = on end)
-createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollideEnabled = on end)
-createToggle(UniversalPage, "Anti-AFK", true, function(on) State.AntiAfkEnabled = on end)
-
-createButton(UniversalPage, "📌 Teleport to Spawn", function()
-    local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
-    if spawn then
-        teleportToPosition(spawn.Position + Vector3.new(0, 5, 0))
-        notify("✅ Teleported to spawn", false)
-    else
-        notify("⚠️ Không tìm thấy spawn", true)
-    end
-end)
-
-createButton(UniversalPage, "🔄 Reset Character", function()
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-    end
-end)
-
--- ============================================================
--- ANTI-BAN TAB
+-- ANTI-BAN TAB (PRO)
 -- ============================================================
 local AntiBanPage = createTab("Anti-Ban")
-createToggle(AntiBanPage, "Safe Mode", true, function(on) State.SafeMode = on end)
-createButton(AntiBanPage, "Panic Cleanup", function()
+
+createToggle(AntiBanPage, "🛡️ Anti-Ban System", true, function(on) State.AntiBanEnabled = on end)
+createToggle(AntiBanPage, "🎭 Jitter (random ±2)", true, function(on) State.JitterEnabled = on end)
+createToggle(AntiBanPage, "⏱️ Rate Limit (20Hz)", true, function(on) State.RateLimitEnabled = on end)
+createToggle(AntiBanPage, "📈 Ramp Up (tăng dần)", true, function(on) State.SpeedRampUp = on end)
+createToggle(AntiBanPage, "👤 Legit Mode (max 60)", false, function(on) State.LegitMode = on end)
+
+createSlider(AntiBanPage, "Max Speed Cap", 50, 500, 250, function(v) State.MaxSpeed = v end)
+
+createButton(AntiBanPage, "🔍 Test Server Detection", function()
+    if isServerChecking() then
+        notify("⚠️ Server đang check WalkSpeed! Giảm speed lại.", true)
+    else
+        notify("✅ Server không check WalkSpeed", false)
+    end
+end)
+
+createButton(AntiBanPage, "🧹 Panic Cleanup", function()
     resetCharacterPhysics()
     State.SpeedEnabled = false
     State.FlyEnabled = false
     State.NoclipEnabled = false
     State.AntiFlingEnabled = false
     State.AntiVoidEnabled = false
-    State.NpcIgnoreEnabled = false
-    State.NoCollideEnabled = false
-    State.AutoRebirthEnabled = false
-    State.SkipZoneLockEnabled = false
-    State.InstantUseEnabled = false
-    State.SkipMaturityEnabled = false
-    State.AutoHatchEnabled = false
+    AntiBan.currentRampSpeed = 16
     notify("✅ Panic cleanup executed", false)
 end)
-createButton(AntiBanPage, "Reset Physics", function()
+
+createButton(AntiBanPage, "🔧 Reset Physics", function()
     resetCharacterPhysics()
     notify("✅ Physics reset", false)
 end)
 
 -- ============================================================
--- SETTINGS TAB
+-- SETTINGS
 -- ============================================================
 local SettingsPage = createTab("Settings")
+createButton(SettingsPage, "Reset Character", function()
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end
+end)
 createButton(SettingsPage, "Unload Script", function()
     resetCharacterPhysics()
     ScreenGui:Destroy()
 end)
 
 -- Default
-if Tabs["Main"] then
-    Tabs["Main"].Button.BackgroundColor3 = Config.CardColor
-    Tabs["Main"].Button.TextColor3 = Config.Accent
-    Tabs["Main"].Page.Visible = true
-    Tabs["Main"].Indicator.Visible = true
+if Tabs["Speed"] then
+    Tabs["Speed"].Button.BackgroundColor3 = Config.CardColor
+    Tabs["Speed"].Button.TextColor3 = Config.Accent
+    Tabs["Speed"].Page.Visible = true
+    Tabs["Speed"].Indicator.Visible = true
 end
 
 -- ============================================================
--- SPEED HACK (RenderStepped)
+-- SPEED HACK CORE (with Anti-Ban Pro)
 -- ============================================================
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
@@ -854,20 +705,47 @@ RunService.RenderStepped:Connect(function()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp then return end
 
-    if State.SpeedEnabled then
-        local v = State.SpeedValue
-        if State.SafeMode and v > 100 then v = 100 end
-        v = v + math.random(-2, 2)
-        pcall(function() hum.WalkSpeed = v end)
+    if State.SpeedEnabled and State.AntiBanEnabled then
+        -- Rate limit
+        if not shouldUpdate() then return end
 
+        local target = State.SpeedValue
+
+        -- Legit mode cap
+        target = applyLegitCap(target)
+
+        -- Max speed cap
+        if target > State.MaxSpeed then target = State.MaxSpeed end
+
+        -- Ramp up
+        local speed = getRampSpeed(target)
+
+        -- Jitter
+        speed = getJitteredSpeed(speed)
+
+        -- Apply WalkSpeed
+        pcall(function() hum.WalkSpeed = speed end)
+
+        -- Velocity injection khi di chuyển
         if hum.MoveDirection.Magnitude > 0.1 then
             local dir = hum.MoveDirection
             pcall(function()
-                hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
+                hrp.Velocity = Vector3.new(dir.X * speed, hrp.Velocity.Y, dir.Z * speed)
             end)
         else
             pcall(function()
                 hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
+            end)
+        end
+
+    elseif State.SpeedEnabled and not State.AntiBanEnabled then
+        -- Speed thô không anti-ban
+        local v = State.SpeedValue
+        pcall(function() hum.WalkSpeed = v end)
+        if hum.MoveDirection.Magnitude > 0.1 then
+            local dir = hum.MoveDirection
+            pcall(function()
+                hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
             end)
         end
     else
@@ -914,103 +792,6 @@ task.spawn(function()
                     end
                 end
             end
-        end
-    end
-end)
-
--- NPC Ignore
-task.spawn(function()
-    while task.wait(2) do
-        if State.NpcIgnoreEnabled then
-            pcall(function()
-                for _, obj in ipairs(Workspace:GetDescendants()) do
-                    if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
-                        if obj.Name ~= LocalPlayer.Name and obj.Name ~= "Camera" then
-                            for _, part in ipairs(obj:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    pcall(function()
-                                        part.CanCollide = false
-                                        part.CanTouch = false
-                                        part.CanQuery = false
-                                    end)
-                                elseif part:IsA("Humanoid") then
-                                    pcall(function()
-                                        part.Health = 0
-                                        part:ChangeState(Enum.HumanoidStateType.Dead)
-                                    end)
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- No Collide Players
-task.spawn(function()
-    while task.wait(0.5) do
-        if State.NoCollideEnabled then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    for _, part in ipairs(player.Character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            pcall(function() part.CanCollide = false end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- Auto Rebirth loop
-task.spawn(function()
-    while true do
-        task.wait(State.AutoRebirthDelay)
-        if State.AutoRebirthEnabled then
-            pcall(tryAutoRebirth)
-        end
-    end
-end)
-
--- Skip Zone Lock loop
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if State.SkipZoneLockEnabled then
-            pcall(unlockAllZones)
-        end
-    end
-end)
-
--- Instant Use loop
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if State.InstantUseEnabled then
-            pcall(instantUseAll)
-        end
-    end
-end)
-
--- Skip Maturity loop
-task.spawn(function()
-    while true do
-        task.wait(2)
-        if State.SkipMaturityEnabled then
-            pcall(skipMaturity)
-        end
-    end
-end)
-
--- Auto Hatch loop
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if State.AutoHatchEnabled then
-            pcall(autoHatch)
         end
     end
 end)
@@ -1104,6 +885,7 @@ LocalPlayer.CharacterAdded:Connect(function()
         flyConn = nil
         flyCleanup = nil
     end
+    AntiBan.currentRampSpeed = 16
     if State.SpeedEnabled then
         local char = LocalPlayer.Character
         if char then
@@ -1135,6 +917,8 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("[EXECUTE HUB] " .. Config.Version .. " loaded — Instant Edition")
-print("[EXECUTE HUB] Progress tab: Auto Rebirth, Skip Zone, Instant Use, Auto Hatch")
+print("[EXECUTE HUB] " .. Config.Version .. " loaded — Speed + Anti-Ban Pro")
+print("[EXECUTE HUB] Jitter: " .. (State.JitterEnabled and "ON" or "OFF"))
+print("[EXECUTE HUB] Rate Limit: " .. (State.RateLimitEnabled and "ON" or "OFF"))
+print("[EXECUTE HUB] Ramp Up: " .. (State.SpeedRampUp and "ON" or "OFF"))
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
