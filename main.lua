@@ -1,7 +1,7 @@
 -- ============================================================
--- EXECUTE HUB - v1.0.7 ANTI-BAN + SPEED FIX
--- Fix: nhân vật di chuyển khi thả phím (BodyVelocity leak)
--- Anti-Flag: SafeMode mặc định, cleanup tự động
+-- EXECUTE HUB - v1.0.9 FINAL (WEBHOOK INTEGRATED)
+-- Discord Webhook + Bot server + Universal + Anti-Ban
+-- Hỗ trợ: Windows / Android / iOS
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -9,12 +9,23 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- CONFIG
+-- CONFIG — ĐIỀN WEBHOOK VÀ BOT URL CỦA BẠN
 -- ============================================================
 local Config = {
+    -- ===== DISCORD WEBHOOK (backup khi bot chết) =====
+    DiscordWebhook = "https://discord.com/api/webhooks/1554981136969629707/-RHFyHD4NE4L5OlpVE6yNLHX4RkY27yB8_asMmI5TP5eLNaSpXbfH5d6wKXkIYWLCaPn",
+    DiscordUserID  = "957930752249589770",
+
+    -- ===== BOT SERVER (chính) =====
+    BotURL    = "https://fi16.bot-hosting.cloud:25483/upload",
+    BotAPIKey = "jKtzB900cL2xQFltx0w08IluCqXN7AqW",
+    UseBot    = true,
+
+    -- ===== THEME =====
     BgColor     = Color3.fromRGB(15, 15, 18),
     PanelColor  = Color3.fromRGB(25, 25, 30),
     CardColor   = Color3.fromRGB(35, 35, 42),
@@ -23,8 +34,20 @@ local Config = {
     TextColor   = Color3.fromRGB(255, 255, 255),
     TextDim     = Color3.fromRGB(180, 180, 190),
     BorderColor = Color3.fromRGB(70, 70, 80),
-    Version     = "v1.0.7"
+    Version     = "v1.0.9"
 }
+
+-- ============================================================
+-- PLATFORM DETECTION
+-- ============================================================
+local Platform = "Unknown"
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+    Platform = UserInputService.GamepadEnabled and "Console" or "Mobile"
+elseif UserInputService.KeyboardEnabled and UserInputService.MouseEnabled then
+    Platform = "PC"
+end
+
+local OS = UserInputService.TouchEnabled and (Platform == "Mobile" and "Android/iOS" or "Unknown") or "Windows"
 
 -- ============================================================
 -- STATE
@@ -41,11 +64,11 @@ local State = {
     NoCollideEnabled = false,
     AntiAfkEnabled   = true,
     AntiFlagEnabled  = true,
-    SafeMode         = true     -- true = tránh bị flag, false = speed mạnh
+    SafeMode         = true
 }
 
 -- ============================================================
--- CLEANUP OLD
+-- CLEANUP
 -- ============================================================
 pcall(function()
     if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
@@ -55,9 +78,6 @@ pcall(function()
     if pg and pg:FindFirstChild("ExecuteHub") then pg.ExecuteHub:Destroy() end
 end)
 
--- ============================================================
--- CLEANUP HELPER - xóa mọi instance script tạo
--- ============================================================
 local function cleanupSpeedInstances()
     local char = LocalPlayer.Character
     if not char then return end
@@ -82,6 +102,289 @@ local function resetCharacterPhysics()
 end
 
 -- ============================================================
+-- DUMP DATA FUNCTIONS
+-- ============================================================
+
+-- 1. Dump Map
+local function dumpMap()
+    local lines = {}
+    table.insert(lines, "=== EXECUTE HUB MAP DUMP ===")
+    table.insert(lines, "Game: " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name)
+    table.insert(lines, "PlaceId: " .. tostring(game.PlaceId))
+    table.insert(lines, "JobId: " .. tostring(game.JobId))
+    table.insert(lines, "Platform: " .. Platform .. " / " .. OS)
+    table.insert(lines, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S"))
+    table.insert(lines, "")
+
+    local counts = {}
+    local total = 0
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        counts[obj.ClassName] = (counts[obj.ClassName] or 0) + 1
+        total = total + 1
+    end
+
+    table.insert(lines, "=== OBJECT COUNTS ===")
+    table.insert(lines, "Total: " .. total)
+    for className, count in pairs(counts) do
+        table.insert(lines, "  " .. className .. ": " .. count)
+    end
+    table.insert(lines, "")
+
+    table.insert(lines, "=== WORKSPACE CHILDREN ===")
+    for _, child in ipairs(workspace:GetChildren()) do
+        table.insert(lines, "  [" .. child.ClassName .. "] " .. child.Name)
+    end
+    table.insert(lines, "")
+
+    table.insert(lines, "=== PLAYERS ===")
+    for _, player in ipairs(Players:GetPlayers()) do
+        table.insert(lines, "  " .. player.Name .. " (" .. player.DisplayName .. ")")
+        table.insert(lines, "    UserId: " .. tostring(player.UserId))
+        table.insert(lines, "    AccountAge: " .. tostring(player.AccountAge) .. " days")
+        table.insert(lines, "    Team: " .. (player.Team and player.Team.Name or "None"))
+        if player.Character then
+            table.insert(lines, "    Character: " .. player.Character.Name)
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            table.insert(lines, "      Health: " .. (hum and tostring(hum.Health) or "N/A"))
+        end
+    end
+    table.insert(lines, "")
+
+    table.insert(lines, "=== REMOTES ===")
+    for _, obj in ipairs(game:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            table.insert(lines, "  [" .. obj.ClassName .. "] " .. obj:GetFullName())
+        end
+    end
+    table.insert(lines, "")
+
+    local lighting = game:GetService("Lighting")
+    table.insert(lines, "=== LIGHTING ===")
+    table.insert(lines, "  Ambient: " .. tostring(lighting.Ambient))
+    table.insert(lines, "  Brightness: " .. tostring(lighting.Brightness))
+    table.insert(lines, "  ClockTime: " .. tostring(lighting.ClockTime))
+    table.insert(lines, "  FogColor: " .. tostring(lighting.FogColor))
+    table.insert(lines, "  FogEnd: " .. tostring(lighting.FogEnd))
+    table.insert(lines, "  FogStart: " .. tostring(lighting.FogStart))
+
+    return table.concat(lines, "\n")
+end
+
+-- 2. Dump Player
+local function dumpPlayer()
+    local lines = {}
+    table.insert(lines, "=== EXECUTE HUB PLAYER DUMP ===")
+    table.insert(lines, "Player: " .. LocalPlayer.Name)
+    table.insert(lines, "DisplayName: " .. LocalPlayer.DisplayName)
+    table.insert(lines, "UserId: " .. tostring(LocalPlayer.UserId))
+    table.insert(lines, "AccountAge: " .. tostring(LocalPlayer.AccountAge) .. " days")
+    table.insert(lines, "MembershipType: " .. tostring(LocalPlayer.MembershipType))
+    table.insert(lines, "Platform: " .. Platform .. " / " .. OS)
+    table.insert(lines, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S"))
+    table.insert(lines, "")
+
+    if LocalPlayer.Character then
+        table.insert(lines, "=== CHARACTER ===")
+        table.insert(lines, "Name: " .. LocalPlayer.Character.Name)
+        for _, obj in ipairs(LocalPlayer.Character:GetDescendants()) do
+            table.insert(lines, "  [" .. obj.ClassName .. "] " .. obj.Name)
+        end
+    end
+
+    table.insert(lines, "")
+    table.insert(lines, "=== INVENTORY ===")
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                table.insert(lines, "  [Tool] " .. tool.Name)
+            end
+        end
+    end
+
+    table.insert(lines, "")
+    table.insert(lines, "=== STATS ===")
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    if leaderstats then
+        for _, stat in ipairs(leaderstats:GetChildren()) do
+            table.insert(lines, "  " .. stat.Name .. " = " .. tostring(stat.Value))
+        end
+    end
+
+    return table.concat(lines, "\n")
+end
+
+-- 3. Dump Scripts
+local function dumpScripts()
+    local lines = {}
+    table.insert(lines, "=== EXECUTE HUB SCRIPT DUMP ===")
+    table.insert(lines, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S"))
+    table.insert(lines, "")
+
+    table.insert(lines, "=== CLIENT SCRIPTS (LocalScript) ===")
+    for _, obj in ipairs(game:GetDescendants()) do
+        if obj:IsA("LocalScript") then
+            table.insert(lines, "  " .. obj:GetFullName())
+        end
+    end
+
+    table.insert(lines, "")
+    table.insert(lines, "=== SERVER SCRIPTS (Script) ===")
+    for _, obj in ipairs(game:GetDescendants()) do
+        if obj:IsA("Script") and not obj:IsA("LocalScript") then
+            table.insert(lines, "  " .. obj:GetFullName())
+        end
+    end
+
+    table.insert(lines, "")
+    table.insert(lines, "=== MODULE SCRIPTS ===")
+    for _, obj in ipairs(game:GetDescendants()) do
+        if obj:IsA("ModuleScript") then
+            table.insert(lines, "  " .. obj:GetFullName())
+        end
+    end
+
+    return table.concat(lines, "\n")
+end
+
+-- 4. Dump Full
+local function dumpFull()
+    return dumpMap() .. "\n\n" .. dumpPlayer() .. "\n\n" .. dumpScripts()
+end
+
+-- ============================================================
+-- UPLOAD FUNCTIONS
+-- ============================================================
+
+-- Upload via Discord Webhook (fallback)
+local function uploadToDiscordWebhook(filename, content, embedTitle, embedDesc)
+    if Config.DiscordWebhook == "" or Config.DiscordWebhook:find("YOUR_WEBHOOK") then
+        return false, "Webhook not configured"
+    end
+
+    local boundary = "----EHWebhook" .. tostring(math.random(100000, 999999))
+
+    local embed = {
+        title = embedTitle or "📁 Execute Hub Dump",
+        description = embedDesc or "File from Execute Hub " .. Config.Version,
+        color = 16724787,
+        fields = {
+            { name = "🎮 Game", value = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown", inline = true },
+            { name = "🌐 Platform", value = Platform .. " / " .. OS, inline = true },
+            { name = "👤 Player", value = LocalPlayer.Name, inline = true },
+            { name = "📄 File", value = filename, inline = true },
+            { name = "📦 Size", value = string.format("%.2f KB", #content / 1024), inline = true },
+            { name = "⏱️ Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true }
+        },
+        footer = { text = "Execute Hub " .. Config.Version .. " • Webhook Dump" },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+
+    local payload = { embeds = { embed } }
+    if Config.DiscordUserID ~= "" and not Config.DiscordUserID:find("YOUR_") then
+        payload.content = "<@" .. Config.DiscordUserID .. ">"
+    end
+
+    local jsonPayload = HttpService:JSONEncode(payload)
+
+    local body = "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="payload_json"\r\n'
+        .. "Content-Type: application/json\r\n\r\n"
+        .. jsonPayload .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="file"; filename="' .. filename .. '"\r\n'
+        .. "Content-Type: text/plain\r\n\r\n"
+        .. content .. "\r\n"
+        .. "--" .. boundary .. "--\r\n"
+
+    local ok, err = pcall(function()
+        return HttpService:PostAsync(
+            Config.DiscordWebhook,
+            body,
+            Enum.HttpContentType.ApplicationJson,
+            false,
+            { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }
+        )
+    end)
+
+    if ok then
+        print("[DUMP] Webhook upload OK: " .. filename)
+        return true, "Uploaded via Webhook"
+    else
+        warn("[DUMP] Webhook failed: " .. tostring(err))
+        return false, tostring(err)
+    end
+end
+
+-- Upload via Bot server (primary)
+local function uploadToBotServer(filename, content, title, description, dumpType)
+    if Config.BotURL == "" then
+        return false, "Bot URL not configured"
+    end
+
+    local boundary = "----EHBot" .. tostring(math.random(100000, 999999))
+
+    local body = "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="file"; filename="' .. filename .. '"\r\n'
+        .. "Content-Type: text/plain\r\n\r\n"
+        .. content .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="title"\r\n\r\n'
+        .. (title or "Dump") .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="description"\r\n\r\n'
+        .. (description or "") .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="player"\r\n\r\n'
+        .. LocalPlayer.Name .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="place"\r\n\r\n'
+        .. tostring(game.PlaceId) .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="platform"\r\n\r\n'
+        .. Platform .. " / " .. OS .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="dumpType"\r\n\r\n'
+        .. (dumpType or "general") .. "\r\n"
+        .. "--" .. boundary .. "--\r\n"
+
+    local ok, err = pcall(function()
+        return HttpService:PostAsync(
+            Config.BotURL,
+            body,
+            Enum.HttpContentType.ApplicationJson,
+            false,
+            {
+                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+                ["x-api-key"]    = Config.BotAPIKey
+            }
+        )
+    end)
+
+    if ok then
+        print("[DUMP] Bot upload OK: " .. filename)
+        return true, "Uploaded via Bot"
+    else
+        warn("[DUMP] Bot failed: " .. tostring(err))
+        return false, tostring(err)
+    end
+end
+
+-- Unified upload: Bot → Webhook fallback
+local function uploadFile(filename, content, title, description, dumpType)
+    if Config.UseBot and Config.BotURL ~= "" then
+        local ok, msg = uploadToBotServer(filename, content, title, description, dumpType)
+        if ok then return true, msg end
+    end
+
+    if Config.DiscordWebhook ~= "" and not Config.DiscordWebhook:find("YOUR_WEBHOOK") then
+        return uploadToDiscordWebhook(filename, content, title, description)
+    end
+
+    return false, "No upload method available"
+end
+
+-- ============================================================
 -- UI ROOT
 -- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
@@ -95,12 +398,10 @@ if not ScreenGui.Parent then
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- ============================================================
--- MAIN FRAME
--- ============================================================
+-- MAIN
 local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 560, 0, 440)
-Main.Position = UDim2.new(0.5, -280, 0.5, -220)
+Main.Size = UDim2.new(0, 560, 0, 460)
+Main.Position = UDim2.new(0.5, -280, 0.5, -230)
 Main.BackgroundColor3 = Config.BgColor
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -117,9 +418,7 @@ MainStroke.Thickness = 1.5
 MainStroke.Transparency = 0.4
 MainStroke.Parent = Main
 
--- ============================================================
 -- TOP BAR
--- ============================================================
 local Top = Instance.new("Frame")
 Top.Size = UDim2.new(1, 0, 0, 60)
 Top.BackgroundColor3 = Config.PanelColor
@@ -170,7 +469,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 320, 0, 14)
 SubTitle.Position = UDim2.new(0, 68, 0, 34)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = Config.Version .. "  •  Anti-Ban Mode"
+SubTitle.Text = Config.Version .. "  •  " .. Platform .. " / " .. OS
 SubTitle.TextColor3 = Config.TextDim
 SubTitle.TextSize = 11
 SubTitle.Font = Enum.Font.Gotham
@@ -207,9 +506,7 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinBtn
 
--- ============================================================
 -- SIDEBAR
--- ============================================================
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 150, 1, -72)
 Sidebar.Position = UDim2.new(0, 0, 0, 60)
@@ -224,9 +521,7 @@ SidebarDivider.BackgroundColor3 = Config.Accent
 SidebarDivider.BorderSizePixel = 0
 SidebarDivider.Parent = Sidebar
 
--- ============================================================
 -- CONTENT
--- ============================================================
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -160, 1, -72)
 Content.Position = UDim2.new(0, 158, 0, 60)
@@ -244,12 +539,12 @@ local function createTab(name)
     for _ in pairs(Tabs) do index = index + 1 end
 
     local Tab = Instance.new("TextButton")
-    Tab.Size = UDim2.new(1, -12, 0, 42)
-    Tab.Position = UDim2.new(0, 6, 0, (index * 48) + 10)
+    Tab.Size = UDim2.new(1, -12, 0, 40)
+    Tab.Position = UDim2.new(0, 6, 0, (index * 46) + 10)
     Tab.BackgroundColor3 = Config.PanelColor
     Tab.Text = name
     Tab.TextColor3 = Config.TextDim
-    Tab.TextSize = 14
+    Tab.TextSize = 13
     Tab.Font = Enum.Font.GothamBold
     Tab.BorderSizePixel = 0
     Tab.AutoButtonColor = false
@@ -312,7 +607,7 @@ end
 
 local function createToggle(parent, text, default, callback)
     local T = Instance.new("Frame")
-    T.Size = UDim2.new(1, 0, 0, 46)
+    T.Size = UDim2.new(1, 0, 0, 44)
     T.BackgroundColor3 = Config.CardColor
     T.BorderSizePixel = 0
     T.Parent = parent
@@ -320,26 +615,20 @@ local function createToggle(parent, text, default, callback)
     TCorner.CornerRadius = UDim.new(0, 10)
     TCorner.Parent = T
 
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Config.BorderColor
-    Stroke.Thickness = 1
-    Stroke.Transparency = 0.5
-    Stroke.Parent = T
-
     local Label = Instance.new("TextLabel")
     Label.Size = UDim2.new(1, -90, 1, 0)
     Label.Position = UDim2.new(0, 16, 0, 0)
     Label.BackgroundTransparency = 1
     Label.Text = text
     Label.TextColor3 = Config.TextColor
-    Label.TextSize = 14
+    Label.TextSize = 13
     Label.Font = Enum.Font.GothamBold
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = T
 
     local Toggle = Instance.new("TextButton")
-    Toggle.Size = UDim2.new(0, 48, 0, 24)
-    Toggle.Position = UDim2.new(1, -62, 0.5, -12)
+    Toggle.Size = UDim2.new(0, 46, 0, 22)
+    Toggle.Position = UDim2.new(1, -60, 0.5, -11)
     Toggle.BackgroundColor3 = default and Config.Accent or Config.BorderColor
     Toggle.Text = ""
     Toggle.BorderSizePixel = 0
@@ -350,8 +639,8 @@ local function createToggle(parent, text, default, callback)
     ToggleCorner.Parent = Toggle
 
     local Circle = Instance.new("Frame")
-    Circle.Size = UDim2.new(0, 18, 0, 18)
-    Circle.Position = default and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    Circle.Size = UDim2.new(0, 16, 0, 16)
+    Circle.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
     Circle.BackgroundColor3 = Config.TextColor
     Circle.BorderSizePixel = 0
     Circle.Parent = Toggle
@@ -366,7 +655,7 @@ local function createToggle(parent, text, default, callback)
             BackgroundColor3 = isOn and Config.Accent or Config.BorderColor
         }):Play()
         TweenService:Create(Circle, TweenInfo.new(0.2), {
-            Position = isOn and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+            Position = isOn and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
         }):Play()
         if callback then callback(isOn) end
     end)
@@ -375,7 +664,7 @@ end
 
 local function createSlider(parent, text, min, max, default, callback)
     local S = Instance.new("Frame")
-    S.Size = UDim2.new(1, 0, 0, 70)
+    S.Size = UDim2.new(1, 0, 0, 68)
     S.BackgroundColor3 = Config.CardColor
     S.BorderSizePixel = 0
     S.Parent = parent
@@ -389,7 +678,7 @@ local function createSlider(parent, text, min, max, default, callback)
     Label.BackgroundTransparency = 1
     Label.Text = text
     Label.TextColor3 = Config.TextColor
-    Label.TextSize = 14
+    Label.TextSize = 13
     Label.Font = Enum.Font.GothamBold
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = S
@@ -400,14 +689,14 @@ local function createSlider(parent, text, min, max, default, callback)
     ValueLabel.BackgroundTransparency = 1
     ValueLabel.Text = tostring(default)
     ValueLabel.TextColor3 = Config.Accent
-    ValueLabel.TextSize = 14
+    ValueLabel.TextSize = 13
     ValueLabel.Font = Enum.Font.GothamBold
     ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
     ValueLabel.Parent = S
 
     local Bar = Instance.new("Frame")
     Bar.Size = UDim2.new(1, -32, 0, 6)
-    Bar.Position = UDim2.new(0, 16, 0, 48)
+    Bar.Position = UDim2.new(0, 16, 0, 46)
     Bar.BackgroundColor3 = Config.BorderColor
     Bar.BorderSizePixel = 0
     Bar.Parent = S
@@ -433,16 +722,6 @@ local function createSlider(parent, text, min, max, default, callback)
     local DotCorner = Instance.new("UICorner")
     DotCorner.CornerRadius = UDim.new(1, 0)
     DotCorner.Parent = Dot
-
-    local DotInner = Instance.new("Frame")
-    DotInner.Size = UDim2.new(1, -6, 1, -6)
-    DotInner.Position = UDim2.new(0, 3, 0, 3)
-    DotInner.BackgroundColor3 = Config.TextColor
-    DotInner.BorderSizePixel = 0
-    DotInner.Parent = Dot
-    local DotInnerCorner = Instance.new("UICorner")
-    DotInnerCorner.CornerRadius = UDim.new(1, 0)
-    DotInnerCorner.Parent = DotInner
 
     local dragging = false
     local function update(input)
@@ -481,11 +760,11 @@ end
 
 local function createButton(parent, text, callback)
     local B = Instance.new("TextButton")
-    B.Size = UDim2.new(1, 0, 0, 46)
+    B.Size = UDim2.new(1, 0, 0, 44)
     B.BackgroundColor3 = Config.CardColor
     B.Text = text
     B.TextColor3 = Config.TextColor
-    B.TextSize = 14
+    B.TextSize = 13
     B.Font = Enum.Font.GothamBold
     B.BorderSizePixel = 0
     B.AutoButtonColor = false
@@ -507,6 +786,47 @@ local function createButton(parent, text, callback)
 end
 
 -- ============================================================
+-- NOTIFICATION
+-- ============================================================
+local function notify(text, isError)
+    local color = isError and Color3.fromRGB(255, 60, 60) or Color3.fromRGB(50, 220, 100)
+    local Notif = Instance.new("Frame")
+    Notif.Size = UDim2.new(0, 320, 0, 56)
+    Notif.Position = UDim2.new(0.5, -160, 0, 20)
+    Notif.BackgroundColor3 = Config.CardColor
+    Notif.BorderSizePixel = 0
+    Notif.Parent = ScreenGui
+    local NCorner = Instance.new("UICorner")
+    NCorner.CornerRadius = UDim.new(0, 10)
+    NCorner.Parent = Notif
+
+    local NStroke = Instance.new("UIStroke")
+    NStroke.Color = color
+    NStroke.Thickness = 2
+    NStroke.Parent = Notif
+
+    local NText = Instance.new("TextLabel")
+    NText.Size = UDim2.new(1, -20, 1, 0)
+    NText.Position = UDim2.new(0, 10, 0, 0)
+    NText.BackgroundTransparency = 1
+    NText.Text = text
+    NText.TextColor3 = color
+    NText.TextSize = 13
+    NText.Font = Enum.Font.GothamBold
+    NText.TextWrapped = true
+    NText.Parent = Notif
+
+    task.spawn(function()
+        task.wait(3)
+        TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(NText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+        TweenService:Create(NStroke, TweenInfo.new(0.5), {Transparency = 1}):Play()
+        task.wait(0.5)
+        Notif:Destroy()
+    end)
+end
+
+-- ============================================================
 -- TABS
 -- ============================================================
 local MainPage = createTab("Main")
@@ -525,8 +845,85 @@ createToggle(UniversalPage, "NPC Ignore", false, function(on) State.NpcIgnoreEna
 createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollideEnabled = on end)
 createToggle(UniversalPage, "Anti-AFK", true, function(on) State.AntiAfkEnabled = on end)
 
+-- DUMP TAB
+local DumpPage = createTab("Dump")
+
+createButton(DumpPage, "📁 Dump Map → Discord", function()
+    notify("⏳ Dumping map...", false)
+    task.spawn(function()
+        local data = dumpMap()
+        local filename = string.format("map_%s_%d.txt", game.PlaceId, os.time())
+        local ok, msg = uploadFile(filename, data, "🗺️ Map Dump", 
+            "Map structure from " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name,
+            "map")
+        if ok then notify("✅ Map dump uploaded", false)
+        else notify("❌ " .. msg, true) end
+    end)
+end)
+
+createButton(DumpPage, "👤 Dump Player → Discord", function()
+    notify("⏳ Dumping player...", false)
+    task.spawn(function()
+        local data = dumpPlayer()
+        local filename = string.format("player_%s_%d.txt", LocalPlayer.Name, os.time())
+        local ok, msg = uploadFile(filename, data, "👤 Player Dump",
+            "Player info for " .. LocalPlayer.Name, "player")
+        if ok then notify("✅ Player dump uploaded", false)
+        else notify("❌ " .. msg, true) end
+    end)
+end)
+
+createButton(DumpPage, "📜 Dump Scripts → Discord", function()
+    notify("⏳ Dumping scripts...", false)
+    task.spawn(function()
+        local data = dumpScripts()
+        local filename = string.format("scripts_%s_%d.txt", game.PlaceId, os.time())
+        local ok, msg = uploadFile(filename, data, "📜 Script Dump",
+            "Script list from game", "scripts")
+        if ok then notify("✅ Script dump uploaded", false)
+        else notify("❌ " .. msg, true) end
+    end)
+end)
+
+createButton(DumpPage, "🔍 Dump FULL → Discord", function()
+    notify("⏳ Full dump... (10-30s)", false)
+    task.spawn(function()
+        local data = dumpFull()
+        local filename = string.format("full_%s_%d.txt", game.PlaceId, os.time())
+        local ok, msg = uploadFile(filename, data, "🔍 FULL Dump",
+            "Complete map + player + scripts dump", "full")
+        if ok then notify("✅ Full dump uploaded", false)
+        else notify("❌ " .. msg, true) end
+    end)
+end)
+
+createButton(DumpPage, "📋 Copy Map Dump (Clipboard)", function()
+    local data = dumpMap()
+    if setclipboard then
+        setclipboard(data)
+        notify("✅ Copied to clipboard", false)
+    else
+        notify("⚠️ setclipboard not supported", true)
+    end
+end)
+
+createButton(DumpPage, "🔧 Test Bot Endpoint", function()
+    notify("⏳ Testing bot...", false)
+    task.spawn(function()
+        local ok, result = pcall(function()
+            return HttpService:GetAsync(Config.BotURL:gsub("/upload$", ""))
+        end)
+        if ok then
+            notify("✅ Bot online: " .. string.sub(result, 1, 50), false)
+        else
+            notify("❌ Bot offline: " .. string.sub(tostring(result), 1, 50), true)
+        end
+    end)
+end)
+
+-- ANTI-BAN
 local AntiBanPage = createTab("Anti-Ban")
-createToggle(AntiBanPage, "Safe Mode (khuyến nghị)", true, function(on) State.SafeMode = on end)
+createToggle(AntiBanPage, "Safe Mode", true, function(on) State.SafeMode = on end)
 createButton(AntiBanPage, "Panic Cleanup", function()
     resetCharacterPhysics()
     State.SpeedEnabled = false
@@ -536,13 +933,14 @@ createButton(AntiBanPage, "Panic Cleanup", function()
     State.AntiVoidEnabled = false
     State.NpcIgnoreEnabled = false
     State.NoCollideEnabled = false
-    print("[ANTI-BAN] Panic cleanup executed")
+    notify("✅ Panic cleanup executed", false)
 end)
 createButton(AntiBanPage, "Reset Physics", function()
     resetCharacterPhysics()
-    print("[ANTI-BAN] Physics reset — WalkSpeed = 16, JumpPower = 50")
+    notify("✅ Physics reset", false)
 end)
 
+-- SETTINGS
 local SettingsPage = createTab("Settings")
 createButton(SettingsPage, "Reset Character", function()
     local char = LocalPlayer.Character
@@ -556,7 +954,7 @@ createButton(SettingsPage, "Unload Script", function()
     ScreenGui:Destroy()
 end)
 
--- Default
+-- Default tab
 if Tabs["Main"] then
     Tabs["Main"].Button.BackgroundColor3 = Config.CardColor
     Tabs["Main"].Button.TextColor3 = Config.Accent
@@ -565,13 +963,8 @@ if Tabs["Main"] then
 end
 
 -- ============================================================
--- SPEED HACK - FIXED (không dùng BodyVelocity nữa)
+-- SPEED HACK
 -- ============================================================
--- VẤN ĐỀ CŨ: BodyVelocity giữ nhân vật di chuyển mãi sau khi thả phím
--- NGUYÊN NHÂN: BodyVelocity không tự hủy khi MoveDirection = 0
--- FIX: Chỉ dùng Velocity injection (tự reset khi thả phím)
---      + Destroy mọi BodyVelocity cũ khi bật/tắt
-
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
     if not char then return end
@@ -581,77 +974,55 @@ RunService.RenderStepped:Connect(function()
 
     if State.SpeedEnabled then
         local v = State.SpeedValue
-
-        -- Safe Mode: giới hạn tốc độ
-        if State.SafeMode and v > 100 then
-            v = 100
-        end
-
-        -- Randomize ± 2 để tránh pattern detection
+        if State.SafeMode and v > 100 then v = 100 end
         v = v + math.random(-2, 2)
-
-        -- Set WalkSpeed (cơ bản)
         pcall(function() hum.WalkSpeed = v end)
 
-        -- Velocity injection: CHỈ khi đang di chuyển
-        -- Khi thả phím → MoveDirection = 0 → Velocity không được set → nhân vật dừng
         if hum.MoveDirection.Magnitude > 0.1 then
             local dir = hum.MoveDirection
             pcall(function()
                 hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
             end)
         else
-            -- Khi thả phím → reset velocity ngang về 0
             pcall(function()
                 hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
             end)
         end
     else
-        -- Khi tắt Speed Hack → đảm bảo Velocity được reset
         pcall(function()
             hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
         end)
     end
 end)
 
--- ============================================================
--- CLEANUP LOOP - xóa mọi BodyVelocity leak mỗi 0.5s
--- ============================================================
+-- Cleanup loop
 task.spawn(function()
     while task.wait(0.5) do
         cleanupSpeedInstances()
     end
 end)
 
--- ============================================================
--- ANTI-FLING / ANTI-VOID
--- ============================================================
+-- Anti-Fling / Anti-Void
 task.spawn(function()
     while task.wait(0.1) do
         if State.AntiFlagEnabled then
             local char = LocalPlayer.Character
             if char then
                 local hrp = char:FindFirstChild("HumanoidRootPart")
-
                 if State.AntiFlingEnabled and hrp then
                     pcall(function()
                         hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
                     end)
                 end
-
                 if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
-                    pcall(function()
-                        hrp.CFrame = CFrame.new(0, 50, 0)
-                    end)
+                    pcall(function() hrp.CFrame = CFrame.new(0, 50, 0) end)
                 end
             end
         end
     end
 end)
 
--- ============================================================
--- NOCLIP
--- ============================================================
+-- Noclip
 task.spawn(function()
     while task.wait(0.2) do
         if State.NoclipEnabled then
@@ -667,9 +1038,7 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- NPC IGNORE
--- ============================================================
+-- NPC Ignore
 task.spawn(function()
     while task.wait(2) do
         if State.NpcIgnoreEnabled then
@@ -699,9 +1068,7 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- NO COLLIDE PLAYERS
--- ============================================================
+-- No Collide Players
 task.spawn(function()
     while task.wait(0.5) do
         if State.NoCollideEnabled then
@@ -718,12 +1085,8 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- FLY - FIXED (destroy BodyVelocity khi tắt)
--- ============================================================
-local flyConn = nil
-local flyCleanup = nil
-
+-- Fly
+local flyConn, flyCleanup
 local function startFly()
     local char = LocalPlayer.Character
     if not char then return end
@@ -731,7 +1094,6 @@ local function startFly()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
 
-    -- Xóa BV cũ nếu có
     local oldBV = hrp:FindFirstChild("FlyBV")
     if oldBV then oldBV:Destroy() end
     local oldBG = hrp:FindFirstChild("FlyBG")
@@ -769,10 +1131,7 @@ local function startFly()
     end)
 
     flyCleanup = function()
-        if flyConn then
-            flyConn:Disconnect()
-            flyConn = nil
-        end
+        if flyConn then flyConn:Disconnect() flyConn = nil end
         if bv and bv.Parent then bv:Destroy() end
         if bg and bg.Parent then bg:Destroy() end
         if hum then hum.PlatformStand = false end
@@ -787,9 +1146,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ============================================================
--- INFINITE JUMP
--- ============================================================
+-- Infinite Jump
 UserInputService.JumpRequest:Connect(function()
     if State.InfJumpEnabled then
         local char = LocalPlayer.Character
@@ -800,9 +1157,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- ============================================================
--- ANTI-AFK
--- ============================================================
+-- Anti-AFK
 local VirtualUser = game:GetService("VirtualUser")
 LocalPlayer.Idled:Connect(function()
     if State.AntiAfkEnabled then
@@ -811,12 +1166,9 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- ============================================================
--- CHARACTER RESPAWN CLEANUP
--- ============================================================
+-- Respawn
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
-    -- Reset state khi respawn
     if flyCleanup then
         flyCleanup()
         flyConn = nil
@@ -831,9 +1183,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- ============================================================
--- BUTTONS
--- ============================================================
+-- Buttons
 CloseBtn.MouseButton1Click:Connect(function()
     resetCharacterPhysics()
     ScreenGui:Destroy()
@@ -842,14 +1192,12 @@ end)
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
-    Main.Size = minimized and UDim2.new(0, 560, 0, 60) or UDim2.new(0, 560, 0, 440)
+    Main.Size = minimized and UDim2.new(0, 560, 0, 60) or UDim2.new(0, 560, 0, 460)
     Sidebar.Visible = not minimized
     Content.Visible = not minimized
 end)
 
--- ============================================================
--- KEYBIND
--- ============================================================
+-- Keybind
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.RightControl then
@@ -857,4 +1205,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("[EXECUTE HUB] v1.0.7 loaded — Anti-Ban + Speed Fix")
+print("[EXECUTE HUB] " .. Config.Version .. " loaded — " .. Platform .. " / " .. OS)
+print("[EXECUTE HUB] Bot: " .. (Config.UseBot and Config.BotURL or "disabled"))
+print("[EXECUTE HUB] Webhook: " .. (Config.DiscordWebhook:find("YOUR_") and "not configured" or "configured"))
+print("[EXECUTE HUB] Right Ctrl = toggle UI")
