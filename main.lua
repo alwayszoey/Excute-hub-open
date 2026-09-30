@@ -1,6 +1,6 @@
 -- ============================================================
--- EXECUTE HUB - v1.0.9 FINAL (WEBHOOK INTEGRATED)
--- Discord Webhook + Bot server + Universal + Anti-Ban
+-- EXECUTE HUB - v1.1.0 WEBHOOK-ONLY
+-- Discord Webhook only (no bot server)
 -- Hỗ trợ: Windows / Android / iOS
 -- ============================================================
 
@@ -13,17 +13,12 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- CONFIG — ĐIỀN WEBHOOK VÀ BOT URL CỦA BẠN
+-- CONFIG — CHỈ CẦN ĐIỀN WEBHOOK URL VÀ USER ID
 -- ============================================================
 local Config = {
-    -- ===== DISCORD WEBHOOK (backup khi bot chết) =====
+    -- ===== DISCORD WEBHOOK =====
     DiscordWebhook = "https://discord.com/api/webhooks/1554981136969629707/-RHFyHD4NE4L5OlpVE6yNLHX4RkY27yB8_asMmI5TP5eLNaSpXbfH5d6wKXkIYWLCaPn",
     DiscordUserID  = "957930752249589770",
-
-    -- ===== BOT SERVER (chính) =====
-    BotURL    = "http://fi16.bot-hosting.cloud:25483/upload",
-    BotAPIKey = "jKtzB900cL2xQFltx0w08IluCqXN7AqW",
-    UseBot    = true,
 
     -- ===== THEME =====
     BgColor     = Color3.fromRGB(15, 15, 18),
@@ -34,7 +29,7 @@ local Config = {
     TextColor   = Color3.fromRGB(255, 255, 255),
     TextDim     = Color3.fromRGB(180, 180, 190),
     BorderColor = Color3.fromRGB(70, 70, 80),
-    Version     = "v1.0.9"
+    Version     = "v1.1.0-Webhook"
 }
 
 -- ============================================================
@@ -47,7 +42,12 @@ elseif UserInputService.KeyboardEnabled and UserInputService.MouseEnabled then
     Platform = "PC"
 end
 
-local OS = UserInputService.TouchEnabled and (Platform == "Mobile" and "Android/iOS" or "Unknown") or "Windows"
+local OS = "Unknown"
+if UserInputService.TouchEnabled then
+    OS = "Mobile"
+else
+    OS = "Windows"
+end
 
 -- ============================================================
 -- STATE
@@ -105,7 +105,6 @@ end
 -- DUMP DATA FUNCTIONS
 -- ============================================================
 
--- 1. Dump Map
 local function dumpMap()
     local lines = {}
     table.insert(lines, "=== EXECUTE HUB MAP DUMP ===")
@@ -163,14 +162,10 @@ local function dumpMap()
     table.insert(lines, "  Ambient: " .. tostring(lighting.Ambient))
     table.insert(lines, "  Brightness: " .. tostring(lighting.Brightness))
     table.insert(lines, "  ClockTime: " .. tostring(lighting.ClockTime))
-    table.insert(lines, "  FogColor: " .. tostring(lighting.FogColor))
-    table.insert(lines, "  FogEnd: " .. tostring(lighting.FogEnd))
-    table.insert(lines, "  FogStart: " .. tostring(lighting.FogStart))
 
     return table.concat(lines, "\n")
 end
 
--- 2. Dump Player
 local function dumpPlayer()
     local lines = {}
     table.insert(lines, "=== EXECUTE HUB PLAYER DUMP ===")
@@ -214,7 +209,6 @@ local function dumpPlayer()
     return table.concat(lines, "\n")
 end
 
--- 3. Dump Scripts
 local function dumpScripts()
     local lines = {}
     table.insert(lines, "=== EXECUTE HUB SCRIPT DUMP ===")
@@ -247,23 +241,21 @@ local function dumpScripts()
     return table.concat(lines, "\n")
 end
 
--- 4. Dump Full
 local function dumpFull()
     return dumpMap() .. "\n\n" .. dumpPlayer() .. "\n\n" .. dumpScripts()
 end
 
 -- ============================================================
--- UPLOAD FUNCTIONS
+-- WEBHOOK UPLOAD (NO task.spawn)
 -- ============================================================
-
--- Upload via Discord Webhook (fallback)
-local function uploadToDiscordWebhook(filename, content, embedTitle, embedDesc)
+local function uploadToWebhook(filename, content, embedTitle, embedDesc)
     if Config.DiscordWebhook == "" or Config.DiscordWebhook:find("YOUR_WEBHOOK") then
         return false, "Webhook not configured"
     end
 
     local boundary = "----EHWebhook" .. tostring(math.random(100000, 999999))
 
+    -- Build embed
     local embed = {
         title = embedTitle or "📁 Execute Hub Dump",
         description = embedDesc or "File from Execute Hub " .. Config.Version,
@@ -276,7 +268,7 @@ local function uploadToDiscordWebhook(filename, content, embedTitle, embedDesc)
             { name = "📦 Size", value = string.format("%.2f KB", #content / 1024), inline = true },
             { name = "⏱️ Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true }
         },
-        footer = { text = "Execute Hub " .. Config.Version .. " • Webhook Dump" },
+        footer = { text = "Execute Hub " .. Config.Version },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
 
@@ -287,6 +279,7 @@ local function uploadToDiscordWebhook(filename, content, embedTitle, embedDesc)
 
     local jsonPayload = HttpService:JSONEncode(payload)
 
+    -- Build multipart body
     local body = "--" .. boundary .. "\r\n"
         .. 'Content-Disposition: form-data; name="payload_json"\r\n'
         .. "Content-Type: application/json\r\n\r\n"
@@ -297,91 +290,22 @@ local function uploadToDiscordWebhook(filename, content, embedTitle, embedDesc)
         .. content .. "\r\n"
         .. "--" .. boundary .. "--\r\n"
 
-    local ok, err = pcall(function()
-        return HttpService:PostAsync(
-            Config.DiscordWebhook,
-            body,
-            Enum.HttpContentType.ApplicationJson,
-            false,
-            { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }
-        )
-    end)
+    -- HTTP request (must be called from main thread)
+    local ok, err = pcall(HttpService.PostAsync, HttpService,
+        Config.DiscordWebhook,
+        body,
+        Enum.HttpContentType.ApplicationJson,
+        false,
+        { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }
+    )
 
     if ok then
         print("[DUMP] Webhook upload OK: " .. filename)
-        return true, "Uploaded via Webhook"
+        return true, "Uploaded"
     else
         warn("[DUMP] Webhook failed: " .. tostring(err))
         return false, tostring(err)
     end
-end
-
--- Upload via Bot server (primary)
-local function uploadToBotServer(filename, content, title, description, dumpType)
-    if Config.BotURL == "" then
-        return false, "Bot URL not configured"
-    end
-
-    local boundary = "----EHBot" .. tostring(math.random(100000, 999999))
-
-    local body = "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="file"; filename="' .. filename .. '"\r\n'
-        .. "Content-Type: text/plain\r\n\r\n"
-        .. content .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="title"\r\n\r\n'
-        .. (title or "Dump") .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="description"\r\n\r\n'
-        .. (description or "") .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="player"\r\n\r\n'
-        .. LocalPlayer.Name .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="place"\r\n\r\n'
-        .. tostring(game.PlaceId) .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="platform"\r\n\r\n'
-        .. Platform .. " / " .. OS .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="dumpType"\r\n\r\n'
-        .. (dumpType or "general") .. "\r\n"
-        .. "--" .. boundary .. "--\r\n"
-
-    local ok, err = pcall(function()
-        return HttpService:PostAsync(
-            Config.BotURL,
-            body,
-            Enum.HttpContentType.ApplicationJson,
-            false,
-            {
-                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
-                ["x-api-key"]    = Config.BotAPIKey
-            }
-        )
-    end)
-
-    if ok then
-        print("[DUMP] Bot upload OK: " .. filename)
-        return true, "Uploaded via Bot"
-    else
-        warn("[DUMP] Bot failed: " .. tostring(err))
-        return false, tostring(err)
-    end
-end
-
--- Unified upload: Bot → Webhook fallback
-local function uploadFile(filename, content, title, description, dumpType)
-    if Config.UseBot and Config.BotURL ~= "" then
-        local ok, msg = uploadToBotServer(filename, content, title, description, dumpType)
-        if ok then return true, msg end
-    end
-
-    if Config.DiscordWebhook ~= "" and not Config.DiscordWebhook:find("YOUR_WEBHOOK") then
-        return uploadToDiscordWebhook(filename, content, title, description)
-    end
-
-    return false, "No upload method available"
 end
 
 -- ============================================================
@@ -398,7 +322,7 @@ if not ScreenGui.Parent then
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- MAIN
+-- MAIN FRAME
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 560, 0, 460)
 Main.Position = UDim2.new(0.5, -280, 0.5, -230)
@@ -845,56 +769,49 @@ createToggle(UniversalPage, "NPC Ignore", false, function(on) State.NpcIgnoreEna
 createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollideEnabled = on end)
 createToggle(UniversalPage, "Anti-AFK", true, function(on) State.AntiAfkEnabled = on end)
 
--- DUMP TAB
+-- ============================================================
+-- DUMP TAB (Webhook only, no task.spawn)
+-- ============================================================
 local DumpPage = createTab("Dump")
 
 createButton(DumpPage, "📁 Dump Map → Discord", function()
     notify("⏳ Dumping map...", false)
-    task.spawn(function()
-        local data = dumpMap()
-        local filename = string.format("map_%s_%d.txt", game.PlaceId, os.time())
-        local ok, msg = uploadFile(filename, data, "🗺️ Map Dump", 
-            "Map structure from " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name,
-            "map")
-        if ok then notify("✅ Map dump uploaded", false)
-        else notify("❌ " .. msg, true) end
-    end)
+    local data = dumpMap()
+    local filename = string.format("map_%s_%d.txt", game.PlaceId, os.time())
+    local ok, msg = uploadToWebhook(filename, data, "🗺️ Map Dump",
+        "Map structure from " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name)
+    if ok then notify("✅ Map dump uploaded", false)
+    else notify("❌ " .. msg, true) end
 end)
 
 createButton(DumpPage, "👤 Dump Player → Discord", function()
     notify("⏳ Dumping player...", false)
-    task.spawn(function()
-        local data = dumpPlayer()
-        local filename = string.format("player_%s_%d.txt", LocalPlayer.Name, os.time())
-        local ok, msg = uploadFile(filename, data, "👤 Player Dump",
-            "Player info for " .. LocalPlayer.Name, "player")
-        if ok then notify("✅ Player dump uploaded", false)
-        else notify("❌ " .. msg, true) end
-    end)
+    local data = dumpPlayer()
+    local filename = string.format("player_%s_%d.txt", LocalPlayer.Name, os.time())
+    local ok, msg = uploadToWebhook(filename, data, "👤 Player Dump",
+        "Player info for " .. LocalPlayer.Name)
+    if ok then notify("✅ Player dump uploaded", false)
+    else notify("❌ " .. msg, true) end
 end)
 
 createButton(DumpPage, "📜 Dump Scripts → Discord", function()
     notify("⏳ Dumping scripts...", false)
-    task.spawn(function()
-        local data = dumpScripts()
-        local filename = string.format("scripts_%s_%d.txt", game.PlaceId, os.time())
-        local ok, msg = uploadFile(filename, data, "📜 Script Dump",
-            "Script list from game", "scripts")
-        if ok then notify("✅ Script dump uploaded", false)
-        else notify("❌ " .. msg, true) end
-    end)
+    local data = dumpScripts()
+    local filename = string.format("scripts_%s_%d.txt", game.PlaceId, os.time())
+    local ok, msg = uploadToWebhook(filename, data, "📜 Script Dump",
+        "Script list from game")
+    if ok then notify("✅ Script dump uploaded", false)
+    else notify("❌ " .. msg, true) end
 end)
 
 createButton(DumpPage, "🔍 Dump FULL → Discord", function()
     notify("⏳ Full dump... (10-30s)", false)
-    task.spawn(function()
-        local data = dumpFull()
-        local filename = string.format("full_%s_%d.txt", game.PlaceId, os.time())
-        local ok, msg = uploadFile(filename, data, "🔍 FULL Dump",
-            "Complete map + player + scripts dump", "full")
-        if ok then notify("✅ Full dump uploaded", false)
-        else notify("❌ " .. msg, true) end
-    end)
+    local data = dumpFull()
+    local filename = string.format("full_%s_%d.txt", game.PlaceId, os.time())
+    local ok, msg = uploadToWebhook(filename, data, "🔍 FULL Dump",
+        "Complete map + player + scripts dump")
+    if ok then notify("✅ Full dump uploaded", false)
+    else notify("❌ " .. msg, true) end
 end)
 
 createButton(DumpPage, "📋 Copy Map Dump (Clipboard)", function()
@@ -907,18 +824,12 @@ createButton(DumpPage, "📋 Copy Map Dump (Clipboard)", function()
     end
 end)
 
-createButton(DumpPage, "🔧 Test Bot Endpoint", function()
-    notify("⏳ Testing bot...", false)
-    task.spawn(function()
-        local ok, result = pcall(function()
-            return HttpService:GetAsync(Config.BotURL:gsub("/upload$", ""))
-        end)
-        if ok then
-            notify("✅ Bot online: " .. string.sub(result, 1, 50), false)
-        else
-            notify("❌ Bot offline: " .. string.sub(tostring(result), 1, 50), true)
-        end
-    end)
+createButton(DumpPage, "🧪 Test Webhook", function()
+    notify("⏳ Testing webhook...", false)
+    local testContent = "Execute Hub webhook test\nTime: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\nPlayer: " .. LocalPlayer.Name
+    local ok, msg = uploadToWebhook("test.txt", testContent, "🧪 Webhook Test", "Test message from Execute Hub")
+    if ok then notify("✅ Webhook OK", false)
+    else notify("❌ " .. msg, true) end
 end)
 
 -- ANTI-BAN
@@ -1206,6 +1117,5 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 print("[EXECUTE HUB] " .. Config.Version .. " loaded — " .. Platform .. " / " .. OS)
-print("[EXECUTE HUB] Bot: " .. (Config.UseBot and Config.BotURL or "disabled"))
-print("[EXECUTE HUB] Webhook: " .. (Config.DiscordWebhook:find("YOUR_") and "not configured" or "configured"))
+print("[EXECUTE HUB] Webhook: " .. (Config.DiscordWebhook:find("YOUR_") and "NOT CONFIGURED" or "configured"))
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
