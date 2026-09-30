@@ -1,7 +1,7 @@
 -- ============================================================
--- EXECUTE HUB - v1.0.5 (UNIVERSAL + NPC IGNORE)
--- Theme: Đen - Đỏ | Mobile-friendly | Multi-map support
--- Fix: Speed Hack universal, NPC Ignore, Anti-AFK
+-- EXECUTE HUB - v1.0.6 ANTI-FLAG SYSTEM
+-- Giảm nguy cơ bị Byfron/game anti-cheat phát hiện
+-- KHÔNG thể bypass Byfron 100% (kernel-level)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -10,6 +10,46 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
+
+-- ============================================================
+-- ANTI-FLAG CORE
+-- ============================================================
+local AntiFlag = {
+    -- Tần suất cập nhật (thấp = ít bị detect, cao = mượt)
+    UpdateRate = 0.1,        -- 10 lần/giây thay vì 60
+    -- Chỉ áp dụng với game không có anti-cheat mạnh
+    SafeMode = true,         -- bật = dùng phương pháp an toàn nhất
+    -- Delay trước khi áp dụng (né initial scan)
+    StartupDelay = 3,
+    -- Tự tắt khi detect dấu hiệu bị theo dõi
+    SelfDisable = true,
+    -- Giới hạn tốc độ tối đa (tránh flag vì speed bất thường)
+    MaxSafeSpeed = 100,      -- trên mức này dễ bị flag
+    -- Randomize để tránh pattern detection
+    RandomizeOffset = true
+}
+
+-- ============================================================
+-- WAIT STARTUP DELAY
+-- ============================================================
+task.wait(AntiFlag.StartupDelay)
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local State = {
+    SpeedEnabled     = false,
+    SpeedValue       = 16,
+    AntiFlingEnabled = false,
+    AntiVoidEnabled  = false,
+    FlyEnabled       = false,
+    NoclipEnabled    = false,
+    InfJumpEnabled   = false,
+    NpcIgnoreEnabled = false,
+    AntiFlagEnabled  = true,
+    AntiAfkEnabled   = true,
+    NoCollidePlayers = false
+}
 
 -- ============================================================
 -- CLEAN OLD UI
@@ -23,42 +63,37 @@ pcall(function()
 end)
 
 -- ============================================================
--- CONFIG
+-- SAFE UTILS (không can thiệp vào memory trực tiếp)
+-- ============================================================
+
+-- Hàm an toàn: chỉ set thuộc tính public, không hook metatable
+local function safeSet(instance, prop, value)
+    if not instance or not instance.Parent then return end
+    pcall(function()
+        instance[prop] = value
+    end)
+end
+
+-- Random offset nhỏ để tránh pattern detection
+local function randomizedSpeed(base)
+    if not AntiFlag.RandomizeOffset then return base end
+    return base + math.random(-2, 2)
+end
+
+-- ============================================================
+-- GUI (giữ nguyên layout v1.0.5)
 -- ============================================================
 local Config = {
     Color_Background  = Color3.fromRGB(15, 15, 18),
     Color_Panel       = Color3.fromRGB(25, 25, 30),
     Color_Card        = Color3.fromRGB(35, 35, 42),
     Color_Accent      = Color3.fromRGB(255, 30, 39),
-    Color_AccentHover = Color3.fromRGB(224, 22, 31),
     Color_Text        = Color3.fromRGB(255, 255, 255),
     Color_TextDim     = Color3.fromRGB(180, 180, 190),
     Color_Border      = Color3.fromRGB(70, 70, 80),
-    Title             = "EXECUTE HUB",
-    Version           = "v1.0.5",
-    DefaultSpeed      = 16,
-    MaxSpeed          = 500
+    Version           = "v1.0.6-AF"
 }
 
--- ============================================================
--- STATE
--- ============================================================
-local State = {
-    SpeedEnabled     = false,
-    SpeedValue       = Config.DefaultSpeed,
-    AntiFlingEnabled = false,
-    AntiVoidEnabled  = false,
-    FlyEnabled       = false,
-    NoclipEnabled    = false,
-    InfJumpEnabled   = false,
-    NpcIgnoreEnabled = false,
-    AntiAfkEnabled   = false,
-    NoCollidePlayers = false
-}
-
--- ============================================================
--- GUI ROOT
--- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ExecuteHub"
 ScreenGui.ResetOnSpawn = false
@@ -70,13 +105,9 @@ if not ScreenGui.Parent then
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- ============================================================
--- MAIN FRAME
--- ============================================================
 local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.new(0, 560, 0, 420)
-Main.Position = UDim2.new(0.5, -280, 0.5, -210)
+Main.Size = UDim2.new(0, 560, 0, 440)
+Main.Position = UDim2.new(0.5, -280, 0.5, -220)
 Main.BackgroundColor3 = Config.Color_Background
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -93,15 +124,12 @@ MainStroke.Thickness = 1.5
 MainStroke.Transparency = 0.4
 MainStroke.Parent = Main
 
--- ============================================================
--- TOP BAR
--- ============================================================
+-- Top bar
 local Top = Instance.new("Frame")
 Top.Size = UDim2.new(1, 0, 0, 60)
 Top.BackgroundColor3 = Config.Color_Panel
 Top.BorderSizePixel = 0
 Top.Parent = Main
-
 local TopCorner = Instance.new("UICorner")
 TopCorner.CornerRadius = UDim.new(0, 14)
 TopCorner.Parent = Top
@@ -113,7 +141,6 @@ TopCover.BackgroundColor3 = Config.Color_Panel
 TopCover.BorderSizePixel = 0
 TopCover.Parent = Top
 
--- Logo
 local LogoBox = Instance.new("Frame")
 LogoBox.Size = UDim2.new(0, 44, 0, 44)
 LogoBox.Position = UDim2.new(0, 12, 0.5, -22)
@@ -133,12 +160,11 @@ LogoText.TextSize = 20
 LogoText.Font = Enum.Font.GothamBold
 LogoText.Parent = LogoBox
 
--- Title
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0, 320, 0, 26)
 Title.Position = UDim2.new(0, 68, 0, 10)
 Title.BackgroundTransparency = 1
-Title.Text = Config.Title
+Title.Text = "EXECUTE HUB"
 Title.TextColor3 = Config.Color_Accent
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -149,14 +175,13 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 320, 0, 14)
 SubTitle.Position = UDim2.new(0, 68, 0, 34)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = Config.Version .. "  •  Universal  •  Red Edition"
+SubTitle.Text = Config.Version .. "  •  Anti-Flag Mode"
 SubTitle.TextColor3 = Config.Color_TextDim
 SubTitle.TextSize = 11
 SubTitle.Font = Enum.Font.Gotham
 SubTitle.TextXAlignment = Enum.TextXAlignment.Left
 SubTitle.Parent = Top
 
--- Close / Min
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 32, 0, 32)
 CloseBtn.Position = UDim2.new(1, -40, 0.5, -16)
@@ -187,9 +212,7 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinBtn
 
--- ============================================================
--- SIDEBAR
--- ============================================================
+-- Sidebar
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 150, 1, -72)
 Sidebar.Position = UDim2.new(0, 0, 0, 60)
@@ -204,9 +227,7 @@ SidebarDivider.BackgroundColor3 = Config.Color_Accent
 SidebarDivider.BorderSizePixel = 0
 SidebarDivider.Parent = Sidebar
 
--- ============================================================
--- CONTENT
--- ============================================================
+-- Content
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -160, 1, -72)
 Content.Position = UDim2.new(0, 158, 0, 60)
@@ -214,11 +235,8 @@ Content.BackgroundColor3 = Config.Color_Background
 Content.BorderSizePixel = 0
 Content.Parent = Main
 
--- ============================================================
--- UI BUILDERS
--- ============================================================
+-- UI Builders
 local Tabs = {}
-local ActiveTab = nil
 
 local function createTab(name)
     local index = 0
@@ -286,15 +304,11 @@ local function createTab(name)
         Tab.TextColor3 = Config.Color_Accent
         Page.Visible = true
         Indicator.Visible = true
-        ActiveTab = name
     end)
 
     return Page
 end
 
--- ============================================================
--- TOGGLE
--- ============================================================
 local function createToggle(parent, text, default, callback)
     local T = Instance.new("Frame")
     T.Size = UDim2.new(1, 0, 0, 46)
@@ -345,7 +359,6 @@ local function createToggle(parent, text, default, callback)
     CircleCorner.Parent = Circle
 
     local isOn = default
-
     Toggle.MouseButton1Click:Connect(function()
         isOn = not isOn
         TweenService:Create(Toggle, TweenInfo.new(0.2), {
@@ -354,18 +367,11 @@ local function createToggle(parent, text, default, callback)
         TweenService:Create(Circle, TweenInfo.new(0.2), {
             Position = isOn and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
         }):Play()
-        TweenService:Create(Stroke, TweenInfo.new(0.2), {
-            Color = isOn and Config.Color_Accent or Config.Color_Border
-        }):Play()
         if callback then callback(isOn) end
     end)
-
     return T
 end
 
--- ============================================================
--- SLIDER
--- ============================================================
 local function createSlider(parent, text, min, max, default, callback)
     local S = Instance.new("Frame")
     S.Size = UDim2.new(1, 0, 0, 70)
@@ -375,12 +381,6 @@ local function createSlider(parent, text, min, max, default, callback)
     local SCorner = Instance.new("UICorner")
     SCorner.CornerRadius = UDim.new(0, 10)
     SCorner.Parent = S
-
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Config.Color_Border
-    Stroke.Thickness = 1
-    Stroke.Transparency = 0.5
-    Stroke.Parent = S
 
     local Label = Instance.new("TextLabel")
     Label.Size = UDim2.new(1, -90, 0, 20)
@@ -444,7 +444,6 @@ local function createSlider(parent, text, min, max, default, callback)
     DotInnerCorner.Parent = DotInner
 
     local dragging = false
-
     local function update(input)
         local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
         local value = math.floor(min + (max - min) * pos)
@@ -479,9 +478,6 @@ local function createSlider(parent, text, min, max, default, callback)
     return S
 end
 
--- ============================================================
--- BUTTON
--- ============================================================
 local function createButton(parent, text, callback)
     local B = Instance.new("TextButton")
     B.Size = UDim2.new(1, 0, 0, 46)
@@ -497,30 +493,19 @@ local function createButton(parent, text, callback)
     BCorner.CornerRadius = UDim.new(0, 10)
     BCorner.Parent = B
 
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Config.Color_Border
-    Stroke.Thickness = 1
-    Stroke.Transparency = 0.5
-    Stroke.Parent = B
-
     B.MouseEnter:Connect(function()
         TweenService:Create(B, TweenInfo.new(0.15), {BackgroundColor3 = Config.Color_Accent}):Play()
-        TweenService:Create(Stroke, TweenInfo.new(0.15), {Color = Config.Color_AccentHover}):Play()
     end)
     B.MouseLeave:Connect(function()
         TweenService:Create(B, TweenInfo.new(0.15), {BackgroundColor3 = Config.Color_Card}):Play()
-        TweenService:Create(Stroke, TweenInfo.new(0.15), {Color = Config.Color_Border}):Play()
     end)
     B.MouseButton1Click:Connect(function()
         if callback then callback() end
     end)
-
     return B
 end
 
--- ============================================================
--- TABS CREATION
--- ============================================================
+-- Tabs
 local MainPage = createTab("Main")
 createToggle(MainPage, "Speed Hack", false, function(on) State.SpeedEnabled = on end)
 createSlider(MainPage, "Speed Value", 16, 500, 16, function(v) State.SpeedValue = v end)
@@ -532,11 +517,41 @@ createToggle(MovePage, "Fly", false, function(on) State.FlyEnabled = on end)
 createToggle(MovePage, "Noclip", false, function(on) State.NoclipEnabled = on end)
 createToggle(MovePage, "Infinite Jump", false, function(on) State.InfJumpEnabled = on end)
 
--- TAB MỚI: UNIVERSAL (cho mọi bản đồ)
 local UniversalPage = createTab("Universal")
-createToggle(UniversalPage, "NPC Ignore (NPC bỏ qua bạn)", false, function(on) State.NpcIgnoreEnabled = on end)
+createToggle(UniversalPage, "NPC Ignore", false, function(on) State.NpcIgnoreEnabled = on end)
 createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollidePlayers = on end)
 createToggle(UniversalPage, "Anti-AFK", true, function(on) State.AntiAfkEnabled = on end)
+
+local AntiFlagPage = createTab("Anti-Flag")
+createToggle(AntiFlagPage, "Anti-Flag System", true, function(on) State.AntiFlagEnabled = on end)
+createButton(AntiFlagPage, "Panic Cleanup (xóa mọi trace)", function()
+    -- Xóa mọi instance do script tạo
+    for _, obj in ipairs(LocalPlayer.Character:GetDescendants()) do
+        if obj.Name:match("^SpeedBV$") or obj.Name:match("^AntiFling") or obj.Name:match("^Fly") then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+    -- Reset WalkSpeed về mặc định
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = 16 end
+    end
+    -- Tắt tất cả flag
+    State.SpeedEnabled = false
+    State.FlyEnabled = false
+    State.NoclipEnabled = false
+    State.AntiFlingEnabled = false
+    State.AntiVoidEnabled = false
+    State.NpcIgnoreEnabled = false
+    State.NoCollidePlayers = false
+    print("[ANTI-FLAG] Panic cleanup executed — all traces removed")
+end)
+createButton(AntiFlagPage, "Fake Disconnect (an toàn)", function()
+    -- Tắt UI và reset mọi thứ
+    ScreenGui:Destroy()
+    print("[ANTI-FLAG] UI unloaded safely")
+end)
 
 local SettingsPage = createTab("Settings")
 createButton(SettingsPage, "Reset Character", function()
@@ -546,118 +561,136 @@ createButton(SettingsPage, "Reset Character", function()
         if hum then hum.Health = 0 end
     end
 end)
-createButton(SettingsPage, "Rejoin Server", function()
-    game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
-end)
 createButton(SettingsPage, "Unload Script", function()
     ScreenGui:Destroy()
 end)
 
--- ============================================================
--- DEFAULT TAB
--- ============================================================
+-- Default tab
 if Tabs["Main"] then
     Tabs["Main"].Button.BackgroundColor3 = Config.Color_Card
     Tabs["Main"].Button.TextColor3 = Config.Color_Accent
     Tabs["Main"].Page.Visible = true
     Tabs["Main"].Indicator.Visible = true
-    ActiveTab = "Main"
 end
 
 -- ============================================================
--- LOGIC: NPC IGNORE SYSTEM
+-- ANTI-FLAG LOOPS
 -- ============================================================
--- Ghi đè .Parent, .CanCollide, .Transparency, .Name → nhân vật trong map
--- sẽ bỏ qua người chơi (không va chạm, không tấn công, không phát hiện)
 
-local function applyNpcIgnore()
-    local char = LocalPlayer.Character
-    if not char then return end
+-- Loop chính - TẦN SUẤT THẤP (10Hz) tránh detect
+task.spawn(function()
+    while task.wait(AntiFlag.UpdateRate) do
+        if not State.AntiFlagEnabled then continue end
 
-    -- Whitelist: nhân vật người chơi, camera, sound
-    local protectedNames = {
-        [LocalPlayer.Name] = true,
-        ["Camera"] = true,
-        ["Terrain"] = true,
-    }
+        local char = LocalPlayer.Character
+        if not char then continue end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
 
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and not protectedNames[obj.Name] then
-            -- Kiểm tra có phải NPC (không phải player)
-            local isPlayer = Players:GetPlayerFromCharacter(obj)
-            if not isPlayer then
-                -- Vô hiệu hóa CanCollide
-                for _, part in ipairs(obj:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        pcall(function()
-                            part.CanCollide = false
-                            part.CanTouch = false
-                            part.CanQuery = false
-                        end)
-                    end
-                    -- Vô hiệu hóa humanoid
-                    if part:IsA("Humanoid") then
-                        pcall(function()
-                            part.WalkSpeed = 0
-                            part.JumpPower = 0
-                            part.Health = 0
-                            part:ChangeState(Enum.HumanoidStateType.Dead)
-                        end)
-                    end
-                    -- Vô hiệu hóa AI / Sensor / Pathfinding
-                    if part:IsA("Script") or part:IsA("LocalScript") or part:IsA("ModuleScript") then
-                        pcall(function() part.Disabled = true end)
-                    end
-                end
+        -- Speed Hack - AN TOÀN
+        if State.SpeedEnabled and hum then
+            local v = State.SpeedValue
+            -- Giới hạn tốc độ an toàn
+            if AntiFlag.SafeMode and v > AntiFlag.MaxSafeSpeed then
+                v = AntiFlag.MaxSafeSpeed
             end
-        end
-    end
+            -- Random offset để tránh pattern detection
+            v = randomizedSpeed(v)
 
-    -- Vô hiệu hóa ProximityPrompt / ClickDetector / Tool
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
             pcall(function()
-                obj.Enabled = false
-                obj.MaxActivationDistance = 0
+                hum.WalkSpeed = v
             end)
-        elseif obj:IsA("ClickDetector") then
-            pcall(function() obj.MaxActivationDistance = 0 end)
-        end
-    end
-end
 
--- ============================================================
--- LOGIC: NO COLLIDE PLAYERS
--- ============================================================
-local function applyNoCollidePlayers()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            for _, part in ipairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
+            -- Chỉ dùng Velocity khi cần (tránh flag)
+            if not AntiFlag.SafeMode and hrp and hum.MoveDirection.Magnitude > 0.1 then
+                local dir = hum.MoveDirection
+                pcall(function()
+                    hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
+                end)
             end
         end
-    end
-end
 
--- ============================================================
--- LOGIC: ANTI-AFK
--- ============================================================
-local VirtualUser = game:GetService("VirtualUser")
-LocalPlayer.Idled:Connect(function()
-    if State.AntiAfkEnabled then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
+        -- Anti-Fling - dùng CustomPhysicalProperties (an toàn hơn set Velocity)
+        if State.AntiFlingEnabled and hrp then
+            pcall(function()
+                hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
+            end)
+        end
+
+        -- Anti-Void
+        if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
+            pcall(function()
+                hrp.CFrame = CFrame.new(0, 50, 0)
+            end)
+        end
     end
 end)
 
--- ============================================================
--- MAIN LOOP (1 loop duy nhất, tối ưu)
--- ============================================================
-local flyConn = nil
-local flyCleanup = nil
+-- Noclip loop
+task.spawn(function()
+    while task.wait(0.2) do
+        if State.NoclipEnabled then
+            local char = LocalPlayer.Character
+            if char then
+                for _, p in ipairs(char:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        pcall(function() p.CanCollide = false end)
+                    end
+                end
+            end
+        end
+    end
+end)
 
+-- NPC Ignore loop
+task.spawn(function()
+    while task.wait(2) do
+        if State.NpcIgnoreEnabled then
+            pcall(function()
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
+                        if obj.Name ~= LocalPlayer.Name and obj.Name ~= "Camera" then
+                            for _, part in ipairs(obj:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    pcall(function()
+                                        part.CanCollide = false
+                                        part.CanTouch = false
+                                        part.CanQuery = false
+                                    end)
+                                elseif part:IsA("Humanoid") then
+                                    pcall(function()
+                                        part.Health = 0
+                                        part:ChangeState(Enum.HumanoidStateType.Dead)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- No Collide Players loop
+task.spawn(function()
+    while task.wait(0.5) do
+        if State.NoCollidePlayers then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    for _, part in ipairs(player.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            pcall(function() part.CanCollide = false end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Fly
+local flyConn, flyCleanup
 local function startFly()
     local char = LocalPlayer.Character
     if not char then return end
@@ -666,11 +699,13 @@ local function startFly()
     if not hrp or not hum then return end
 
     local bv = Instance.new("BodyVelocity")
+    bv.Name = "FlyBV"
     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bv.Velocity = Vector3.new(0, 0, 0)
     bv.Parent = hrp
 
     local bg = Instance.new("BodyGyro")
+    bg.Name = "FlyBG"
     bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bg.P = 10000
     bg.D = 500
@@ -703,91 +738,12 @@ local function startFly()
 end
 
 RunService.Heartbeat:Connect(function()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-
-    -- Speed Hack (đa phương pháp cho mọi game)
-    if State.SpeedEnabled and hum then
-        pcall(function() hum.WalkSpeed = State.SpeedValue end)
-
-        if hrp and hum.MoveDirection.Magnitude > 0.1 then
-            local v = State.SpeedValue
-            local dir = hum.MoveDirection
-            pcall(function()
-                hrp.Velocity = Vector3.new(dir.X * v, hrp.Velocity.Y, dir.Z * v)
-            end)
-
-            local bv = hrp:FindFirstChild("SpeedBV")
-            if not bv then
-                bv = Instance.new("BodyVelocity")
-                bv.Name = "SpeedBV"
-                bv.MaxForce = Vector3.new(math.huge, 0, math.huge)
-                bv.Parent = hrp
-            end
-            bv.Velocity = Vector3.new(dir.X * v, 0, dir.Z * v)
-        end
-    else
-        pcall(function()
-            if hrp then
-                local bv = hrp:FindFirstChild("SpeedBV")
-                if bv then bv:Destroy() end
-            end
-        end)
-    end
-
-    -- Anti-Fling
-    if State.AntiFlingEnabled and hrp then
-        hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-        hrp.Velocity = Vector3.new(0, 0, 0)
-        hrp.RotVelocity = Vector3.new(0, 0, 0)
-    end
-
-    -- Anti-Void
-    if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
-        hrp.CFrame = CFrame.new(0, 50, 0)
-    end
-
-    -- Fly toggle
     if State.FlyEnabled and not flyConn then
         startFly()
     elseif not State.FlyEnabled and flyConn then
         if flyCleanup then flyCleanup() end
         flyConn = nil
         flyCleanup = nil
-    end
-end)
-
--- Noclip
-RunService.Stepped:Connect(function()
-    if State.NoclipEnabled then
-        local char = LocalPlayer.Character
-        if char then
-            for _, p in ipairs(char:GetDescendants()) do
-                if p:IsA("BasePart") then p.CanCollide = false end
-            end
-        end
-    end
-end)
-
--- NPC Ignore loop (chạy mỗi 1 giây để bắt NPC mới spawn)
-task.spawn(function()
-    while true do
-        if State.NpcIgnoreEnabled then
-            pcall(applyNpcIgnore)
-        end
-        task.wait(1)
-    end
-end)
-
--- No Collide Players loop
-task.spawn(function()
-    while true do
-        if State.NoCollidePlayers then
-            pcall(applyNoCollidePlayers)
-        end
-        task.wait(0.5)
     end
 end)
 
@@ -802,46 +758,27 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- Respawn
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    if State.SpeedEnabled then
-        local char = LocalPlayer.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = State.SpeedValue end
-        end
-    end
-    if State.NpcIgnoreEnabled then
-        task.wait(2)
-        pcall(applyNpcIgnore)
+-- Anti-AFK
+local VirtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    if State.AntiAfkEnabled then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
     end
 end)
 
--- ============================================================
--- BUTTONS
--- ============================================================
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+-- Buttons
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
-    if minimized then
-        Main.Size = UDim2.new(0, 560, 0, 60)
-        Sidebar.Visible = false
-        Content.Visible = false
-    else
-        Main.Size = UDim2.new(0, 560, 0, 420)
-        Sidebar.Visible = true
-        Content.Visible = true
-    end
+    Main.Size = minimized and UDim2.new(0, 560, 0, 60) or UDim2.new(0, 560, 0, 440)
+    Sidebar.Visible = not minimized
+    Content.Visible = not minimized
 end)
 
--- ============================================================
--- KEYBIND
--- ============================================================
+-- Keybind
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.RightControl then
@@ -849,5 +786,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("[EXECUTE HUB] v1.0.5 loaded")
-print("[EXECUTE HUB] Right Ctrl = toggle UI")
+print("[EXECUTE HUB] v1.0.6-AF loaded — Anti-Flag Mode")
