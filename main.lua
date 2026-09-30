@@ -1,8 +1,9 @@
 -- ============================================================
--- EXECUTE HUB - UNIVERSAL ROBLOX SCRIPT (RED/BLACK THEME FIXED)
+-- EXECUTE HUB - UNIVERSAL ROBLOX SCRIPT (FULLY FIXED)
 -- Ngôn ngữ: Lua (Roblox Executor)
--- Theme: Đen - Đỏ (Black/Red) - ĐÃ SỬA
+-- Theme: Đen - Đỏ (Black/Red)
 -- Logo: https://i.postimg.cc/kGmZ8sZx/Untitled14-20260930231234.png
+-- Version: v1.0.1 (fixed syntax errors, improved stability)
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -15,20 +16,20 @@ local LocalPlayer = Players.LocalPlayer
 --// CONFIG - ĐEN ĐỎ
 local CONFIG = {
     Theme = {
-        Background   = Color3.fromRGB(10, 10, 10),      -- Đen tuyền
-        Panel        = Color3.fromRGB(20, 20, 20),      -- Đen panel
-        Secondary    = Color3.fromRGB(28, 28, 28),      -- Xám đen
-        Accent       = Color3.fromRGB(230, 30, 30),     -- Đỏ tươi
-        AccentHover  = Color3.fromRGB(255, 60, 60),     -- Đỏ sáng
-        AccentDark   = Color3.fromRGB(160, 15, 15),     -- Đỏ tối
-        Text         = Color3.fromRGB(245, 245, 245),   -- Trắng
-        TextDim      = Color3.fromRGB(150, 150, 150),   -- Xám
-        Border       = Color3.fromRGB(45, 45, 45),      -- Viền xám
-        Danger       = Color3.fromRGB(255, 0, 0)        -- Đỏ nguy hiểm
+        Background   = Color3.fromRGB(10, 10, 10),
+        Panel        = Color3.fromRGB(20, 20, 20),
+        Secondary    = Color3.fromRGB(28, 28, 28),
+        Accent       = Color3.fromRGB(230, 30, 30),
+        AccentHover  = Color3.fromRGB(255, 60, 60),
+        AccentDark   = Color3.fromRGB(160, 15, 15),
+        Text         = Color3.fromRGB(245, 245, 245),
+        TextDim      = Color3.fromRGB(150, 150, 150),
+        Border       = Color3.fromRGB(45, 45, 45),
+        Danger       = Color3.fromRGB(255, 0, 0)
     },
     Logo = "https://i.postimg.cc/kGmZ8sZx/Untitled14-20260930231234.png",
     Title = "EXECUTE HUB",
-    Version = "v1.0.0",
+    Version = "v1.0.1",
     DefaultSpeed = 16,
     MaxSpeed = 500
 }
@@ -44,25 +45,48 @@ local State = {
 }
 
 --// UTILS
-local function getCharacter() return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait() end
-local function getHRP() return getCharacter():FindFirstChild("HumanoidRootPart") end
-local function getHumanoid() return getCharacter():FindFirstChildOfClass("Humanoid") end
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
 
---// CLEAN
+local function getHRP()
+    local char = getCharacter()
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHumanoid()
+    local char = getCharacter()
+    if not char then return nil end
+    return char:FindFirstChildOfClass("Humanoid")
+end
+
+--// CLEAN OLD GUI
 pcall(function()
-    if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
+    if CoreGui:FindFirstChild("ExecuteHub") then
+        CoreGui.ExecuteHub:Destroy()
+    end
 end)
 pcall(function()
-    if LocalPlayer.PlayerGui:FindFirstChild("ExecuteHub") then LocalPlayer.PlayerGui.ExecuteHub:Destroy() end
+    if LocalPlayer:FindFirstChild("PlayerGui") then
+        local pg = LocalPlayer.PlayerGui
+        if pg:FindFirstChild("ExecuteHub") then
+            pg.ExecuteHub:Destroy()
+        end
+    end
 end)
 
 --// GUI ROOT
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ExecuteHub"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.SỀibling
-pcall(function() ScreenGui.Parent =N CoreGui end)
-if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+
+local parentOk = pcall(function() ScreenGui.Parent = CoreGui end)
+if not parentOk or not ScreenGui.Parent then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 --// MAIN FRAME
 local MainFrame = Instance.new("Frame")
@@ -75,7 +99,9 @@ MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = CONFIG.Theme.Accent
@@ -92,7 +118,9 @@ Glow.BackgroundTransparency = 0.92
 Glow.BorderSizePixel = 0
 Glow.ZIndex = 0
 Glow.Parent = MainFrame
-Instance.new("UICorner", Glow).CornerRadius = UDim.new(0, 14)
+local GlowCorner = Instance.new("UICorner")
+GlowCorner.CornerRadius = UDim.new(0, 14)
+GlowCorner.Parent = Glow
 
 --// TOP BAR
 local TopBar = Instance.new("Frame")
@@ -100,7 +128,9 @@ TopBar.Size = UDim2.new(1, 0, 0, 52)
 TopBar.BackgroundColor3 = CONFIG.Theme.Panel
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
-Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 14)
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 14)
+TopBarCorner.Parent = TopBar
 
 local TopCover = Instance.new("Frame")
 TopCover.Size = UDim2.new(1, 0, 0, 20)
@@ -109,14 +139,16 @@ TopCover.BackgroundColor3 = CONFIG.Theme.Panel
 TopCover.BorderSizePixel = 0
 TopCover.Parent = TopBar
 
---// LOGO VỚI VI ĐỎ
+--// LOGO VỚI VIỀN ĐỎ
 local LogoFrame = Instance.new("Frame")
 LogoFrame.Size = UDim2.new(0, 40, 0, 40)
 LogoFrame.Position = UDim2.new(0, 10, 0.5, -20)
 LogoFrame.BackgroundColor3 = CONFIG.Theme.Accent
 LogoFrame.BorderSizePixel = 0
 LogoFrame.Parent = TopBar
-Instance.new("UICorner", LogoFrame).CornerRadius = UDim.new(0, 8)
+local LogoFrameCorner = Instance.new("UICorner")
+LogoFrameCorner.CornerRadius = UDim.new(0, 8)
+LogoFrameCorner.Parent = LogoFrame
 
 local Logo = Instance.new("ImageLabel")
 Logo.Size = UDim2.new(1, -4, 1, -4)
@@ -124,7 +156,9 @@ Logo.Position = UDim2.new(0, 2, 0, 2)
 Logo.BackgroundTransparency = 1
 Logo.Image = CONFIG.Logo
 Logo.Parent = LogoFrame
-Instance.new("UICorner", Logo).CornerRadius = UDim.new(0, 6)
+local LogoCorner = Instance.new("UICorner")
+LogoCorner.CornerRadius = UDim.new(0, 6)
+LogoCorner.Parent = Logo
 
 --// TITLE
 local Title = Instance.new("TextLabel")
@@ -160,7 +194,9 @@ MinBtn.TextSize = 18
 MinBtn.Font = Enum.Font.GothamBold
 MinBtn.BorderSizePixel = 0
 MinBtn.Parent = TopBar
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.Parent = MinBtn
 
 --// CLOSE
 local CloseBtn = Instance.new("TextButton")
@@ -173,7 +209,9 @@ CloseBtn.TextSize = 15
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = TopBar
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
 
 --// HOVER EFFECT CHO CLOSE
 CloseBtn.MouseEnter:Connect(function()
@@ -223,9 +261,10 @@ local function createTab(name, icon)
     Tab.TextXAlignment = Enum.TextXAlignment.Left
     Tab.BorderSizePixel = 0
     Tab.Parent = Sidebar
-    Instance.new("UICorner", Tab).CornerRadius = UDim.new(0, 8)
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.CornerRadius = UDim.new(0, 8)
+    TabCorner.Parent = Tab
 
-    -- RED BAR CHỈ BÁO ACTIVE
     local Indicator = Instance.new("Frame")
     Indicator.Size = UDim2.new(0, 3, 0.6, 0)
     Indicator.Position = UDim2.new(0, 0, 0.2, 0)
@@ -233,7 +272,9 @@ local function createTab(name, icon)
     Indicator.BorderSizePixel = 0
     Indicator.Visible = false
     Indicator.Parent = Tab
-    Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
+    local IndCorner = Instance.new("UICorner")
+    IndCorner.CornerRadius = UDim.new(1, 0)
+    IndCorner.Parent = Indicator
 
     local Page = Instance.new("ScrollingFrame")
     Page.Size = UDim2.new(1, 0, 1, 0)
@@ -271,7 +312,6 @@ local function createTab(name, icon)
         ActiveTab = name
     end)
 
-    -- HOVER
     Tab.MouseEnter:Connect(function()
         if ActiveTab ~= name then
             TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundColor3 = CONFIG.Theme.Secondary}):Play()
@@ -293,7 +333,9 @@ local function createToggle(parent, text, default, callback)
     Toggle.BackgroundColor3 = CONFIG.Theme.Panel
     Toggle.BorderSizePixel = 0
     Toggle.Parent = parent
-    Instance.new("UICorner", Toggle).CornerRadius = UDim.new(0, 8)
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 8)
+    ToggleCorner.Parent = Toggle
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Theme.Border
@@ -318,7 +360,9 @@ local function createToggle(parent, text, default, callback)
     ToggleBtn.Text = ""
     ToggleBtn.BorderSizePixel = 0
     ToggleBtn.Parent = Toggle
-    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+    local ToggleBtnCorner = Instance.new("UICorner")
+    ToggleBtnCorner.CornerRadius = UDim.new(1, 0)
+    ToggleBtnCorner.Parent = ToggleBtn
 
     local Circle = Instance.new("Frame")
     Circle.Size = UDim2.new(0, 18, 0, 18)
@@ -326,7 +370,9 @@ local function createToggle(parent, text, default, callback)
     Circle.BackgroundColor3 = CONFIG.Theme.Text
     Circle.BorderSizePixel = 0
     Circle.Parent = ToggleBtn
-    Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
+    local CircleCorner = Instance.new("UICorner")
+    CircleCorner.CornerRadius = UDim.new(1, 0)
+    CircleCorner.Parent = Circle
 
     local isOn = default
 
@@ -354,7 +400,9 @@ local function createSlider(parent, text, min, max, default, callback)
     Slider.BackgroundColor3 = CONFIG.Theme.Panel
     Slider.BorderSizePixel = 0
     Slider.Parent = parent
-    Instance.new("UICorner", Slider).CornerRadius = UDim.new(0, 8)
+    local SliderCorner = Instance.new("UICorner")
+    SliderCorner.CornerRadius = UDim.new(0, 8)
+    SliderCorner.Parent = Slider
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Theme.Border
@@ -389,14 +437,18 @@ local function createSlider(parent, text, min, max, default, callback)
     SliderBar.BackgroundColor3 = CONFIG.Theme.Border
     SliderBar.BorderSizePixel = 0
     SliderBar.Parent = Slider
-    Instance.new("UICorner", SliderBar).CornerRadius = UDim.new(1, 0)
+    local BarCorner = Instance.new("UICorner")
+    BarCorner.CornerRadius = UDim.new(1, 0)
+    BarCorner.Parent = SliderBar
 
     local Fill = Instance.new("Frame")
     Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
     Fill.BackgroundColor3 = CONFIG.Theme.Accent
     Fill.BorderSizePixel = 0
     Fill.Parent = SliderBar
-    Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0)
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = Fill
 
     local Dot = Instance.new("Frame")
     Dot.Size = UDim2.new(0, 16, 0, 16)
@@ -404,7 +456,9 @@ local function createSlider(parent, text, min, max, default, callback)
     Dot.BackgroundColor3 = CONFIG.Theme.Accent
     Dot.BorderSizePixel = 0
     Dot.Parent = SliderBar
-    Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
+    local DotCorner = Instance.new("UICorner")
+    DotCorner.CornerRadius = UDim.new(1, 0)
+    DotCorner.Parent = Dot
 
     local DotInner = Instance.new("Frame")
     DotInner.Size = UDim2.new(1, -6, 1, -6)
@@ -412,7 +466,9 @@ local function createSlider(parent, text, min, max, default, callback)
     DotInner.BackgroundColor3 = CONFIG.Theme.Text
     DotInner.BorderSizePixel = 0
     DotInner.Parent = Dot
-    Instance.new("UICorner", DotInner).CornerRadius = UDim.new(1, 0)
+    local DotInnerCorner = Instance.new("UICorner")
+    DotInnerCorner.CornerRadius = UDim.new(1, 0)
+    DotInnerCorner.Parent = DotInner
 
     local dragging = false
 
@@ -457,7 +513,9 @@ local function createButton(parent, text, callback)
     Button.Font = Enum.Font.GothamMedium
     Button.BorderSizePixel = 0
     Button.Parent = parent
-    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 8)
+    ButtonCorner.Parent = Button
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Theme.Border
@@ -480,7 +538,7 @@ local function createButton(parent, text, callback)
     return Button
 end
 
---// TABS
+--// TABS CREATION
 local MainPage = createTab("Main", "🏠")
 createToggle(MainPage, "Speed Hack", false, function(on) State.SpeedEnabled = on end)
 createSlider(MainPage, "Speed Value", 16, CONFIG.MaxSpeed, CONFIG.DefaultSpeed, function(v) State.SpeedValue = v end)
@@ -500,9 +558,11 @@ createButton(SettingsPage, "Reset Character", function()
         if hum then hum.Health = 0 end
     end
 end)
-createButton(SettingsPage, "Unload Script", function() ScreenGui:Destroy() end)
+createButton(SettingsPage, "Unload Script", function()
+    ScreenGui:Destroy()
+end)
 
---// LOGIC
+--// LOGIC LOOPS
 RunService.Heartbeat:Connect(function()
     if State.SpeedEnabled then
         local hum = getHumanoid()
@@ -533,8 +593,10 @@ end)
 RunService.Stepped:Connect(function()
     if State.NoclipEnabled then
         local char = getCharacter()
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
         end
     end
 end)
@@ -563,6 +625,8 @@ local function startFly()
 
     flyConn = RunService.RenderStepped:Connect(function()
         local cam = workspace.CurrentCamera
+        if not cam then return end
+
         local dir = Vector3.new(0, 0, 0)
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
@@ -619,22 +683,32 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
 
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
-    MainFrame.Size = minimized and UDim2.new(0, 540, 0, 52) or UDim2.new(0, 540, 0, 380)
-    Sidebar.Visible = not minimized
-    Content.Visible = not minimized
+    if minimized then
+        MainFrame.Size = UDim2.new(0, 540, 0, 52)
+        Sidebar.Visible = false
+        Content.Visible = false
+    else
+        MainFrame.Size = UDim2.new(0, 540, 0, 380)
+        Sidebar.Visible = true
+        Content.Visible = true
+    end
 end)
 
 --// DEFAULT TAB
-Tabs["Main"].Button.BackgroundColor3 = CONFIG.Theme.Secondary
-Tabs["Main"].Button.TextColor3 = CONFIG.Theme.Accent
-Tabs["Main"].Page.Visible = true
-Tabs["Main"].Indicator.Visible = true
-ActiveTab = "Main"
+if Tabs["Main"] then
+    Tabs["Main"].Button.BackgroundColor3 = CONFIG.Theme.Secondary
+    Tabs["Main"].Button.TextColor3 = CONFIG.Theme.Accent
+    Tabs["Main"].Page.Visible = true
+    Tabs["Main"].Indicator.Visible = true
+    ActiveTab = "Main"
+end
 
 --// NOTIFICATION ĐỎ
 local Notif = Instance.new("Frame")
@@ -643,7 +717,9 @@ Notif.Position = UDim2.new(0.5, -160, 0, 20)
 Notif.BackgroundColor3 = CONFIG.Theme.Panel
 Notif.BorderSizePixel = 0
 Notif.Parent = ScreenGui
-Instance.new("UICorner", Notif).CornerRadius = UDim.new(0, 10)
+local NotifCorner = Instance.new("UICorner")
+NotifCorner.CornerRadius = UDim.new(0, 10)
+NotifCorner.Parent = Notif
 
 local NotifStroke = Instance.new("UIStroke")
 NotifStroke.Color = CONFIG.Theme.Accent
@@ -654,18 +730,20 @@ local NotifText = Instance.new("TextLabel")
 NotifText.Size = UDim2.new(1, -20, 1, 0)
 NotifText.Position = UDim2.new(0, 10, 0, 0)
 NotifText.BackgroundTransparency = 1
-NotifText.Text = "✅ Execute Hub đã load - Red Edition"
+NotifText.Text = "✅ Execute Hub đã load - Red Edition " .. CONFIG.Version
 NotifText.TextColor3 = CONFIG.Theme.Accent
 NotifText.TextSize = 13
 NotifText.Font = Enum.Font.GothamBold
 NotifText.Parent = Notif
 
-task.wait(3)
-TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
-TweenService:Create(NotifText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-TweenService:Create(NotifStroke, TweenInfo.new(0.5), {Transparency = 1}):Play()
-task.wait(0.5)
-Notif:Destroy()
+task.spawn(function()
+    task.wait(3)
+    TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(NotifText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+    TweenService:Create(NotifStroke, TweenInfo.new(0.5), {Transparency = 1}):Play()
+    task.wait(0.5)
+    Notif:Destroy()
+end)
 
-print("[EXECUTE HUB] Red Edition loaded v" .. CONFIG.Version)
+print("[EXECUTE HUB] Red Edition loaded " .. CONFIG.Version)
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
