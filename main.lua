@@ -1,7 +1,7 @@
 -- ============================================================
--- EXECUTE HUB - v1.1.0 WEBHOOK-ONLY
--- Discord Webhook only (no bot server)
--- Hỗ trợ: Windows / Android / iOS
+-- EXECUTE HUB - v1.2.0 (STEAL AN EGG / ANIME VANGUARDS EDITION)
+-- Bỏ dump system. Thêm: Auto Rebirth, Skip Zone Lock, Instant Use
+-- Fix: Speed, Fly, Noclip cho mọi map
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -9,18 +9,13 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
 
 -- ============================================================
--- CONFIG — CHỈ CẦN ĐIỀN WEBHOOK URL VÀ USER ID
+-- CONFIG
 -- ============================================================
 local Config = {
-    -- ===== DISCORD WEBHOOK =====
-    DiscordWebhook = "https://discord.com/api/webhooks/1554981136969629707/-RHFyHD4NE4L5OlpVE6yNLHX4RkY27yB8_asMmI5TP5eLNaSpXbfH5d6wKXkIYWLCaPn",
-    DiscordUserID  = "957930752249589770",
-
-    -- ===== THEME =====
     BgColor     = Color3.fromRGB(15, 15, 18),
     PanelColor  = Color3.fromRGB(25, 25, 30),
     CardColor   = Color3.fromRGB(35, 35, 42),
@@ -29,42 +24,31 @@ local Config = {
     TextColor   = Color3.fromRGB(255, 255, 255),
     TextDim     = Color3.fromRGB(180, 180, 190),
     BorderColor = Color3.fromRGB(70, 70, 80),
-    Version     = "v1.1.0-Webhook"
+    Version     = "v1.2.0-Instant"
 }
-
--- ============================================================
--- PLATFORM DETECTION
--- ============================================================
-local Platform = "Unknown"
-if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-    Platform = UserInputService.GamepadEnabled and "Console" or "Mobile"
-elseif UserInputService.KeyboardEnabled and UserInputService.MouseEnabled then
-    Platform = "PC"
-end
-
-local OS = "Unknown"
-if UserInputService.TouchEnabled then
-    OS = "Mobile"
-else
-    OS = "Windows"
-end
 
 -- ============================================================
 -- STATE
 -- ============================================================
 local State = {
-    SpeedEnabled     = false,
-    SpeedValue       = 16,
-    AntiFlingEnabled = false,
-    AntiVoidEnabled  = false,
-    FlyEnabled       = false,
-    NoclipEnabled    = false,
-    InfJumpEnabled   = false,
-    NpcIgnoreEnabled = false,
-    NoCollideEnabled = false,
-    AntiAfkEnabled   = true,
-    AntiFlagEnabled  = true,
-    SafeMode         = true
+    SpeedEnabled        = false,
+    SpeedValue          = 16,
+    AntiFlingEnabled    = false,
+    AntiVoidEnabled     = false,
+    FlyEnabled          = false,
+    NoclipEnabled       = false,
+    InfJumpEnabled      = false,
+    NpcIgnoreEnabled    = false,
+    NoCollideEnabled    = false,
+    AntiAfkEnabled      = true,
+    SafeMode            = true,
+    -- NEW FEATURES
+    AutoRebirthEnabled  = false,
+    AutoRebirthDelay    = 0.5,
+    SkipZoneLockEnabled = false,
+    InstantUseEnabled   = false,
+    SkipMaturityEnabled = false,
+    AutoHatchEnabled    = false
 }
 
 -- ============================================================
@@ -102,213 +86,6 @@ local function resetCharacterPhysics()
 end
 
 -- ============================================================
--- DUMP DATA FUNCTIONS
--- ============================================================
-
-local function dumpMap()
-    local lines = {}
-    table.insert(lines, "=== EXECUTE HUB MAP DUMP ===")
-    table.insert(lines, "Game: " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name)
-    table.insert(lines, "PlaceId: " .. tostring(game.PlaceId))
-    table.insert(lines, "JobId: " .. tostring(game.JobId))
-    table.insert(lines, "Platform: " .. Platform .. " / " .. OS)
-    table.insert(lines, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S"))
-    table.insert(lines, "")
-
-    local counts = {}
-    local total = 0
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        counts[obj.ClassName] = (counts[obj.ClassName] or 0) + 1
-        total = total + 1
-    end
-
-    table.insert(lines, "=== OBJECT COUNTS ===")
-    table.insert(lines, "Total: " .. total)
-    for className, count in pairs(counts) do
-        table.insert(lines, "  " .. className .. ": " .. count)
-    end
-    table.insert(lines, "")
-
-    table.insert(lines, "=== WORKSPACE CHILDREN ===")
-    for _, child in ipairs(workspace:GetChildren()) do
-        table.insert(lines, "  [" .. child.ClassName .. "] " .. child.Name)
-    end
-    table.insert(lines, "")
-
-    table.insert(lines, "=== PLAYERS ===")
-    for _, player in ipairs(Players:GetPlayers()) do
-        table.insert(lines, "  " .. player.Name .. " (" .. player.DisplayName .. ")")
-        table.insert(lines, "    UserId: " .. tostring(player.UserId))
-        table.insert(lines, "    AccountAge: " .. tostring(player.AccountAge) .. " days")
-        table.insert(lines, "    Team: " .. (player.Team and player.Team.Name or "None"))
-        if player.Character then
-            table.insert(lines, "    Character: " .. player.Character.Name)
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            table.insert(lines, "      Health: " .. (hum and tostring(hum.Health) or "N/A"))
-        end
-    end
-    table.insert(lines, "")
-
-    table.insert(lines, "=== REMOTES ===")
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            table.insert(lines, "  [" .. obj.ClassName .. "] " .. obj:GetFullName())
-        end
-    end
-    table.insert(lines, "")
-
-    local lighting = game:GetService("Lighting")
-    table.insert(lines, "=== LIGHTING ===")
-    table.insert(lines, "  Ambient: " .. tostring(lighting.Ambient))
-    table.insert(lines, "  Brightness: " .. tostring(lighting.Brightness))
-    table.insert(lines, "  ClockTime: " .. tostring(lighting.ClockTime))
-
-    return table.concat(lines, "\n")
-end
-
-local function dumpPlayer()
-    local lines = {}
-    table.insert(lines, "=== EXECUTE HUB PLAYER DUMP ===")
-    table.insert(lines, "Player: " .. LocalPlayer.Name)
-    table.insert(lines, "DisplayName: " .. LocalPlayer.DisplayName)
-    table.insert(lines, "UserId: " .. tostring(LocalPlayer.UserId))
-    table.insert(lines, "AccountAge: " .. tostring(LocalPlayer.AccountAge) .. " days")
-    table.insert(lines, "MembershipType: " .. tostring(LocalPlayer.MembershipType))
-    table.insert(lines, "Platform: " .. Platform .. " / " .. OS)
-    table.insert(lines, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S"))
-    table.insert(lines, "")
-
-    if LocalPlayer.Character then
-        table.insert(lines, "=== CHARACTER ===")
-        table.insert(lines, "Name: " .. LocalPlayer.Character.Name)
-        for _, obj in ipairs(LocalPlayer.Character:GetDescendants()) do
-            table.insert(lines, "  [" .. obj.ClassName .. "] " .. obj.Name)
-        end
-    end
-
-    table.insert(lines, "")
-    table.insert(lines, "=== INVENTORY ===")
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if backpack then
-        for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                table.insert(lines, "  [Tool] " .. tool.Name)
-            end
-        end
-    end
-
-    table.insert(lines, "")
-    table.insert(lines, "=== STATS ===")
-    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-    if leaderstats then
-        for _, stat in ipairs(leaderstats:GetChildren()) do
-            table.insert(lines, "  " .. stat.Name .. " = " .. tostring(stat.Value))
-        end
-    end
-
-    return table.concat(lines, "\n")
-end
-
-local function dumpScripts()
-    local lines = {}
-    table.insert(lines, "=== EXECUTE HUB SCRIPT DUMP ===")
-    table.insert(lines, "Timestamp: " .. os.date("%Y-%m-%d %H:%M:%S"))
-    table.insert(lines, "")
-
-    table.insert(lines, "=== CLIENT SCRIPTS (LocalScript) ===")
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("LocalScript") then
-            table.insert(lines, "  " .. obj:GetFullName())
-        end
-    end
-
-    table.insert(lines, "")
-    table.insert(lines, "=== SERVER SCRIPTS (Script) ===")
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("Script") and not obj:IsA("LocalScript") then
-            table.insert(lines, "  " .. obj:GetFullName())
-        end
-    end
-
-    table.insert(lines, "")
-    table.insert(lines, "=== MODULE SCRIPTS ===")
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("ModuleScript") then
-            table.insert(lines, "  " .. obj:GetFullName())
-        end
-    end
-
-    return table.concat(lines, "\n")
-end
-
-local function dumpFull()
-    return dumpMap() .. "\n\n" .. dumpPlayer() .. "\n\n" .. dumpScripts()
-end
-
--- ============================================================
--- WEBHOOK UPLOAD (NO task.spawn)
--- ============================================================
-local function uploadToWebhook(filename, content, embedTitle, embedDesc)
-    if Config.DiscordWebhook == "" or Config.DiscordWebhook:find("YOUR_WEBHOOK") then
-        return false, "Webhook not configured"
-    end
-
-    local boundary = "----EHWebhook" .. tostring(math.random(100000, 999999))
-
-    -- Build embed
-    local embed = {
-        title = embedTitle or "📁 Execute Hub Dump",
-        description = embedDesc or "File from Execute Hub " .. Config.Version,
-        color = 16724787,
-        fields = {
-            { name = "🎮 Game", value = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown", inline = true },
-            { name = "🌐 Platform", value = Platform .. " / " .. OS, inline = true },
-            { name = "👤 Player", value = LocalPlayer.Name, inline = true },
-            { name = "📄 File", value = filename, inline = true },
-            { name = "📦 Size", value = string.format("%.2f KB", #content / 1024), inline = true },
-            { name = "⏱️ Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true }
-        },
-        footer = { text = "Execute Hub " .. Config.Version },
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }
-
-    local payload = { embeds = { embed } }
-    if Config.DiscordUserID ~= "" and not Config.DiscordUserID:find("YOUR_") then
-        payload.content = "<@" .. Config.DiscordUserID .. ">"
-    end
-
-    local jsonPayload = HttpService:JSONEncode(payload)
-
-    -- Build multipart body
-    local body = "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="payload_json"\r\n'
-        .. "Content-Type: application/json\r\n\r\n"
-        .. jsonPayload .. "\r\n"
-        .. "--" .. boundary .. "\r\n"
-        .. 'Content-Disposition: form-data; name="file"; filename="' .. filename .. '"\r\n'
-        .. "Content-Type: text/plain\r\n\r\n"
-        .. content .. "\r\n"
-        .. "--" .. boundary .. "--\r\n"
-
-    -- HTTP request (must be called from main thread)
-    local ok, err = pcall(HttpService.PostAsync, HttpService,
-        Config.DiscordWebhook,
-        body,
-        Enum.HttpContentType.ApplicationJson,
-        false,
-        { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }
-    )
-
-    if ok then
-        print("[DUMP] Webhook upload OK: " .. filename)
-        return true, "Uploaded"
-    else
-        warn("[DUMP] Webhook failed: " .. tostring(err))
-        return false, tostring(err)
-    end
-end
-
--- ============================================================
 -- UI ROOT
 -- ============================================================
 local ScreenGui = Instance.new("ScreenGui")
@@ -322,7 +99,6 @@ if not ScreenGui.Parent then
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- MAIN FRAME
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 560, 0, 460)
 Main.Position = UDim2.new(0.5, -280, 0.5, -230)
@@ -393,7 +169,7 @@ local SubTitle = Instance.new("TextLabel")
 SubTitle.Size = UDim2.new(0, 320, 0, 14)
 SubTitle.Position = UDim2.new(0, 68, 0, 34)
 SubTitle.BackgroundTransparency = 1
-SubTitle.Text = Config.Version .. "  •  " .. Platform .. " / " .. OS
+SubTitle.Text = Config.Version .. "  •  Instant Edition"
 SubTitle.TextColor3 = Config.TextDim
 SubTitle.TextSize = 11
 SubTitle.Font = Enum.Font.Gotham
@@ -445,7 +221,6 @@ SidebarDivider.BackgroundColor3 = Config.Accent
 SidebarDivider.BorderSizePixel = 0
 SidebarDivider.Parent = Sidebar
 
--- CONTENT
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -160, 1, -72)
 Content.Position = UDim2.new(0, 158, 0, 60)
@@ -751,6 +526,201 @@ local function notify(text, isError)
 end
 
 -- ============================================================
+-- UNIVERSAL TELEPORT FUNCTION
+-- ============================================================
+local function teleportToCFrame(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    pcall(function()
+        hrp.CFrame = targetCFrame
+    end)
+    return true
+end
+
+local function teleportToPosition(position)
+    return teleportToCFrame(CFrame.new(position))
+end
+
+-- ============================================================
+-- ZONE UNLOCK (bypass Rebirth Required gate)
+-- ============================================================
+local function unlockAllZones()
+    -- Method 1: Tìm các barrier/gate có tên chứa "Rebirth", "Required", "Lock"
+    local barrierKeywords = {"Rebirth", "Required", "Gate", "Barrier", "Lock", "Wall", "Invisible"}
+    local touched = 0
+    
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            for _, keyword in ipairs(barrierKeywords) do
+                if string.find(obj.Name, keyword, 1, true) then
+                    pcall(function()
+                        if obj:IsA("BasePart") then
+                            obj.CanCollide = false
+                            obj.CanTouch = false
+                            obj.CanQuery = false
+                            obj.Transparency = 1
+                        elseif obj:IsA("Model") then
+                            for _, part in ipairs(obj:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                    part.CanTouch = false
+                                    part.CanQuery = false
+                                    part.Transparency = 1
+                                end
+                            end
+                        end
+                    end)
+                    touched = touched + 1
+                    break
+                end
+            end
+        end
+    end
+    return touched
+end
+
+-- ============================================================
+-- INSTANT USE - Fire mọi ProximityPrompt trong tầm xa
+-- ============================================================
+local function instantUseAll()
+    local fired = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            pcall(function()
+                -- Bypass hold duration
+                obj.HoldDuration = 0
+                obj.MaxActivationDistance = math.huge
+                obj.RequiresLineOfSight = false
+                -- Fire prompt
+                if fireproximityprompt then
+                    fireproximityprompt(obj)
+                    fired = fired + 1
+                end
+            end)
+        elseif obj:IsA("ClickDetector") then
+            pcall(function()
+                obj.MaxActivationDistance = math.huge
+                if fireclickdetector then
+                    fireclickdetector(obj)
+                    fired = fired + 1
+                end
+            end)
+        end
+    end
+    return fired
+end
+
+-- ============================================================
+-- AUTO REBIRTH - Tìm và fire remote rebirth
+-- ============================================================
+local function tryAutoRebirth()
+    local fired = 0
+    -- Method 1: Tìm RemoteEvent chứa "Rebirth"
+    for _, obj in ipairs(game:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local name = string.lower(obj.Name)
+            if string.find(name, "rebirth", 1, true) or string.find(name, "prestige", 1, true) then
+                pcall(function()
+                    if obj:IsA("RemoteEvent") then
+                        obj:FireServer()
+                    else
+                        obj:InvokeServer()
+                    end
+                    fired = fired + 1
+                end)
+            end
+        end
+    end
+    -- Method 2: Tìm Button UI chứa text "Rebirth"
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in ipairs(playerGui:GetDescendants()) do
+            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                local text = ""
+                if gui:IsA("TextButton") then text = gui.Text end
+                if string.find(string.lower(text), "rebirth", 1, true) then
+                    pcall(function()
+                        gui:Activate()
+                        fired = fired + 1
+                    end)
+                end
+            end
+        end
+    end
+    return fired
+end
+
+-- ============================================================
+-- SKIP ANIME MATURITY - Set Growth/Level lên max
+-- ============================================================
+local function skipMaturity()
+    local set = 0
+    -- Method 1: Set attribute Level/Growth/Age trên player
+    pcall(function()
+        for _, attr in ipairs({"Level", "Growth", "Age", "Maturity", "Stage", "Evolution"}) do
+            LocalPlayer:SetAttribute(attr, 9999)
+            set = set + 1
+        end
+    end)
+    -- Method 2: Set trên leaderstats
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    if leaderstats then
+        for _, stat in ipairs(leaderstats:GetChildren()) do
+            local name = string.lower(stat.Name)
+            if string.find(name, "level", 1, true) or string.find(name, "growth", 1, true) 
+                or string.find(name, "age", 1, true) or string.find(name, "maturity", 1, true)
+                or string.find(name, "evolution", 1, true) then
+                pcall(function()
+                    stat.Value = 999999
+                    set = set + 1
+                end)
+            end
+        end
+    end
+    -- Method 3: Set trên character attributes
+    local char = LocalPlayer.Character
+    if char then
+        pcall(function()
+            for _, attr in ipairs({"Level", "Growth", "Age", "Maturity"}) do
+                char:SetAttribute(attr, 9999)
+                set = set + 1
+            end
+        end)
+    end
+    return set
+end
+
+-- ============================================================
+-- AUTO HATCH - Fire tất cả trứng trong tầm
+-- ============================================================
+local function autoHatch()
+    local hatched = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            if string.find(name, "egg", 1, true) or string.find(name, "hatch", 1, true) then
+                -- Fire prompt/click trên egg
+                pcall(function()
+                    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt and fireproximityprompt then
+                        fireproximityprompt(prompt)
+                        hatched = hatched + 1
+                    end
+                    local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+                    if click and fireclickdetector then
+                        fireclickdetector(click)
+                        hatched = hatched + 1
+                    end
+                end)
+            end
+        end
+    end
+    return hatched
+end
+
+-- ============================================================
 -- TABS
 -- ============================================================
 local MainPage = createTab("Main")
@@ -764,75 +734,76 @@ createToggle(MovePage, "Fly", false, function(on) State.FlyEnabled = on end)
 createToggle(MovePage, "Noclip", false, function(on) State.NoclipEnabled = on end)
 createToggle(MovePage, "Infinite Jump", false, function(on) State.InfJumpEnabled = on end)
 
+-- ============================================================
+-- PROGRESS TAB (NEW - Instant features)
+-- ============================================================
+local ProgressPage = createTab("Progress")
+
+createToggle(ProgressPage, "🚀 Auto Rebirth", false, function(on) State.AutoRebirthEnabled = on end)
+createSlider(ProgressPage, "Rebirth Delay (s)", 1, 30, 1, function(v) State.AutoRebirthDelay = v end)
+createButton(ProgressPage, "⚡ Rebirth Ngay Bây Giờ", function()
+    local fired = tryAutoRebirth()
+    if fired > 0 then notify("✅ Rebirth fired (" .. fired .. " remotes)", false)
+    else notify("⚠️ Không tìm thấy rebirth remote", true) end
+end)
+
+createToggle(ProgressPage, "🔓 Skip Zone Lock (Rebirth Required)", false, function(on) State.SkipZoneLockEnabled = on end)
+createButton(ProgressPage, "🔓 Mở Khóa Tất Cả Zone Ngay", function()
+    local touched = unlockAllZones()
+    if touched > 0 then notify("✅ Đã mở " .. touched .. " barrier", false)
+    else notify("⚠️ Không tìm thấy barrier", true) end
+end)
+
+createToggle(ProgressPage, "⏩ Skip Anime Maturity", false, function(on) State.SkipMaturityEnabled = on end)
+createButton(ProgressPage, "⏩ Max Level Ngay", function()
+    local set = skipMaturity()
+    if set > 0 then notify("✅ Đã set " .. set .. " stats", false)
+    else notify("⚠️ Không tìm thấy stat để set", true) end
+end)
+
+createToggle(ProgressPage, "🔥 Instant Use (mọi ProximityPrompt)", false, function(on) State.InstantUseEnabled = on end)
+createButton(ProgressPage, "🔥 Fire All Prompts Ngay", function()
+    local fired = instantUseAll()
+    if fired > 0 then notify("✅ Đã fire " .. fired .. " prompt", false)
+    else notify("⚠️ Không có prompt nào", true) end
+end)
+
+createToggle(ProgressPage, "🥚 Auto Hatch Eggs", false, function(on) State.AutoHatchEnabled = on end)
+createButton(ProgressPage, "🥚 Hatch Ngay", function()
+    local hatched = autoHatch()
+    if hatched > 0 then notify("✅ Đã hatch " .. hatched .. " egg", false)
+    else notify("⚠️ Không tìm thấy egg", true) end
+end)
+
+-- ============================================================
+-- UNIVERSAL TAB
+-- ============================================================
 local UniversalPage = createTab("Universal")
 createToggle(UniversalPage, "NPC Ignore", false, function(on) State.NpcIgnoreEnabled = on end)
 createToggle(UniversalPage, "No Collide Players", false, function(on) State.NoCollideEnabled = on end)
 createToggle(UniversalPage, "Anti-AFK", true, function(on) State.AntiAfkEnabled = on end)
 
--- ============================================================
--- DUMP TAB (Webhook only, no task.spawn)
--- ============================================================
-local DumpPage = createTab("Dump")
-
-createButton(DumpPage, "📁 Dump Map → Discord", function()
-    notify("⏳ Dumping map...", false)
-    local data = dumpMap()
-    local filename = string.format("map_%s_%d.txt", game.PlaceId, os.time())
-    local ok, msg = uploadToWebhook(filename, data, "🗺️ Map Dump",
-        "Map structure from " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name)
-    if ok then notify("✅ Map dump uploaded", false)
-    else notify("❌ " .. msg, true) end
-end)
-
-createButton(DumpPage, "👤 Dump Player → Discord", function()
-    notify("⏳ Dumping player...", false)
-    local data = dumpPlayer()
-    local filename = string.format("player_%s_%d.txt", LocalPlayer.Name, os.time())
-    local ok, msg = uploadToWebhook(filename, data, "👤 Player Dump",
-        "Player info for " .. LocalPlayer.Name)
-    if ok then notify("✅ Player dump uploaded", false)
-    else notify("❌ " .. msg, true) end
-end)
-
-createButton(DumpPage, "📜 Dump Scripts → Discord", function()
-    notify("⏳ Dumping scripts...", false)
-    local data = dumpScripts()
-    local filename = string.format("scripts_%s_%d.txt", game.PlaceId, os.time())
-    local ok, msg = uploadToWebhook(filename, data, "📜 Script Dump",
-        "Script list from game")
-    if ok then notify("✅ Script dump uploaded", false)
-    else notify("❌ " .. msg, true) end
-end)
-
-createButton(DumpPage, "🔍 Dump FULL → Discord", function()
-    notify("⏳ Full dump... (10-30s)", false)
-    local data = dumpFull()
-    local filename = string.format("full_%s_%d.txt", game.PlaceId, os.time())
-    local ok, msg = uploadToWebhook(filename, data, "🔍 FULL Dump",
-        "Complete map + player + scripts dump")
-    if ok then notify("✅ Full dump uploaded", false)
-    else notify("❌ " .. msg, true) end
-end)
-
-createButton(DumpPage, "📋 Copy Map Dump (Clipboard)", function()
-    local data = dumpMap()
-    if setclipboard then
-        setclipboard(data)
-        notify("✅ Copied to clipboard", false)
+createButton(UniversalPage, "📌 Teleport to Spawn", function()
+    local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
+    if spawn then
+        teleportToPosition(spawn.Position + Vector3.new(0, 5, 0))
+        notify("✅ Teleported to spawn", false)
     else
-        notify("⚠️ setclipboard not supported", true)
+        notify("⚠️ Không tìm thấy spawn", true)
     end
 end)
 
-createButton(DumpPage, "🧪 Test Webhook", function()
-    notify("⏳ Testing webhook...", false)
-    local testContent = "Execute Hub webhook test\nTime: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\nPlayer: " .. LocalPlayer.Name
-    local ok, msg = uploadToWebhook("test.txt", testContent, "🧪 Webhook Test", "Test message from Execute Hub")
-    if ok then notify("✅ Webhook OK", false)
-    else notify("❌ " .. msg, true) end
+createButton(UniversalPage, "🔄 Reset Character", function()
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end
 end)
 
--- ANTI-BAN
+-- ============================================================
+-- ANTI-BAN TAB
+-- ============================================================
 local AntiBanPage = createTab("Anti-Ban")
 createToggle(AntiBanPage, "Safe Mode", true, function(on) State.SafeMode = on end)
 createButton(AntiBanPage, "Panic Cleanup", function()
@@ -844,6 +815,11 @@ createButton(AntiBanPage, "Panic Cleanup", function()
     State.AntiVoidEnabled = false
     State.NpcIgnoreEnabled = false
     State.NoCollideEnabled = false
+    State.AutoRebirthEnabled = false
+    State.SkipZoneLockEnabled = false
+    State.InstantUseEnabled = false
+    State.SkipMaturityEnabled = false
+    State.AutoHatchEnabled = false
     notify("✅ Panic cleanup executed", false)
 end)
 createButton(AntiBanPage, "Reset Physics", function()
@@ -851,21 +827,16 @@ createButton(AntiBanPage, "Reset Physics", function()
     notify("✅ Physics reset", false)
 end)
 
--- SETTINGS
+-- ============================================================
+-- SETTINGS TAB
+-- ============================================================
 local SettingsPage = createTab("Settings")
-createButton(SettingsPage, "Reset Character", function()
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-    end
-end)
 createButton(SettingsPage, "Unload Script", function()
     resetCharacterPhysics()
     ScreenGui:Destroy()
 end)
 
--- Default tab
+-- Default
 if Tabs["Main"] then
     Tabs["Main"].Button.BackgroundColor3 = Config.CardColor
     Tabs["Main"].Button.TextColor3 = Config.Accent
@@ -874,7 +845,7 @@ if Tabs["Main"] then
 end
 
 -- ============================================================
--- SPEED HACK
+-- SPEED HACK (RenderStepped)
 -- ============================================================
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
@@ -916,18 +887,16 @@ end)
 -- Anti-Fling / Anti-Void
 task.spawn(function()
     while task.wait(0.1) do
-        if State.AntiFlagEnabled then
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if State.AntiFlingEnabled and hrp then
-                    pcall(function()
-                        hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-                    end)
-                end
-                if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
-                    pcall(function() hrp.CFrame = CFrame.new(0, 50, 0) end)
-                end
+        local char = LocalPlayer.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if State.AntiFlingEnabled and hrp then
+                pcall(function()
+                    hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
+                end)
+            end
+            if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
+                pcall(function() hrp.CFrame = CFrame.new(0, 50, 0) end)
             end
         end
     end
@@ -954,7 +923,7 @@ task.spawn(function()
     while task.wait(2) do
         if State.NpcIgnoreEnabled then
             pcall(function()
-                for _, obj in ipairs(workspace:GetDescendants()) do
+                for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("Model") and not Players:GetPlayerFromCharacter(obj) then
                         if obj.Name ~= LocalPlayer.Name and obj.Name ~= "Camera" then
                             for _, part in ipairs(obj:GetDescendants()) do
@@ -992,6 +961,56 @@ task.spawn(function()
                     end
                 end
             end
+        end
+    end
+end)
+
+-- Auto Rebirth loop
+task.spawn(function()
+    while true do
+        task.wait(State.AutoRebirthDelay)
+        if State.AutoRebirthEnabled then
+            pcall(tryAutoRebirth)
+        end
+    end
+end)
+
+-- Skip Zone Lock loop
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.SkipZoneLockEnabled then
+            pcall(unlockAllZones)
+        end
+    end
+end)
+
+-- Instant Use loop
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if State.InstantUseEnabled then
+            pcall(instantUseAll)
+        end
+    end
+end)
+
+-- Skip Maturity loop
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if State.SkipMaturityEnabled then
+            pcall(skipMaturity)
+        end
+    end
+end)
+
+-- Auto Hatch loop
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if State.AutoHatchEnabled then
+            pcall(autoHatch)
         end
     end
 end)
@@ -1116,6 +1135,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-print("[EXECUTE HUB] " .. Config.Version .. " loaded — " .. Platform .. " / " .. OS)
-print("[EXECUTE HUB] Webhook: " .. (Config.DiscordWebhook:find("YOUR_") and "NOT CONFIGURED" or "configured"))
+print("[EXECUTE HUB] " .. Config.Version .. " loaded — Instant Edition")
+print("[EXECUTE HUB] Progress tab: Auto Rebirth, Skip Zone, Instant Use, Auto Hatch")
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
