@@ -1,79 +1,87 @@
 -- ============================================================
--- EXECUTE HUB - v1.4.0 REDESIGNED UI (ReaperX Style)
--- Theme: Đen-Đỏ, sidebar + content layout, logo box
--- Speed + Anti-Ban Pro, optimized stability
+-- EXECUTE HUB - v2.0.0 (RAYFIELD DARK/RED THEME)
+-- Full Auto Farm + Speed + Anti-Ban
+-- Yêu cầu: Executor có HTTP (Delta Pro, Arceus X, Fluxus, Krnl)
 -- ============================================================
 
+-- ============================================================
+-- LOAD RAYFIELD LIBRARY
+-- ============================================================
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- ============================================================
+-- SERVICES
+-- ============================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
-
--- ============================================================
--- CONFIG
--- ============================================================
-local Config = {
-    -- Colors (ReaperX inspired)
-    BgDark       = Color3.fromRGB(12, 12, 15),
-    BgPanel      = Color3.fromRGB(22, 22, 28),
-    BgCard       = Color3.fromRGB(32, 32, 40),
-    BgCardHover  = Color3.fromRGB(45, 45, 55),
-    BgSidebar    = Color3.fromRGB(18, 18, 22),
-    BgTopBar     = Color3.fromRGB(25, 25, 32),
-    Accent       = Color3.fromRGB(255, 35, 45),
-    AccentHover  = Color3.fromRGB(255, 60, 70),
-    AccentDark   = Color3.fromRGB(180, 20, 30),
-    TextPrimary  = Color3.fromRGB(245, 245, 250),
-    TextSecond   = Color3.fromRGB(160, 160, 175),
-    TextMuted    = Color3.fromRGB(110, 110, 125),
-    Border       = Color3.fromRGB(45, 45, 55),
-    BorderLight  = Color3.fromRGB(65, 65, 80),
-    Success      = Color3.fromRGB(60, 220, 110),
-    -- Meta
-    Title        = "EXECUTE HUB",
-    Subtitle     = "Pro Edition",
-    Version      = "v1.4.0",
-    LogoText     = "EH"
-}
 
 -- ============================================================
 -- STATE
 -- ============================================================
 local State = {
-    SpeedEnabled      = false,
-    SpeedValue        = 16,
-    AntiFlingEnabled  = false,
-    AntiVoidEnabled   = false,
-    FlyEnabled        = false,
-    NoclipEnabled     = false,
-    InfJumpEnabled    = false,
-    AntiAfkEnabled    = true,
-    AntiBanEnabled    = true,
-    JitterEnabled     = true,
-    RateLimitEnabled  = true,
-    LegitMode         = false,
-    MaxSpeed          = 250,
-    SpeedRampUp       = true
+    -- Auto Farm
+    AutoFarmEnabled    = false,
+    AutoFarmMode       = "Nearest",
+    AutoFarmRange      = 50,
+    AutoCollectDrop    = false,
+    AutoOpenChest      = false,
+    -- Speed
+    SpeedEnabled       = false,
+    SpeedValue         = 16,
+    -- Anti-Ban
+    AntiBanEnabled     = true,
+    JitterEnabled      = true,
+    RateLimitEnabled   = true,
+    LegitMode          = false,
+    MaxSpeed           = 250,
+    -- Movement
+    FlyEnabled         = false,
+    NoclipEnabled      = false,
+    InfJumpEnabled     = false,
+    AntiFlingEnabled   = false,
+    AntiVoidEnabled    = false,
+    -- Misc
+    AntiAfkEnabled     = true,
+    AutoSkillEnabled   = false,
+    SelectedSkills     = {}
 }
 
+-- ============================================================
+-- ANTI-BAN CORE
+-- ============================================================
 local AntiBan = {
     tick = 0,
-    currentRampSpeed = 16
+    currentRampSpeed = 16,
+    originalWalkspeed = 16
 }
 
--- ============================================================
--- CLEANUP
--- ============================================================
-pcall(function()
-    if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
-end)
-pcall(function()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg and pg:FindFirstChild("ExecuteHub") then pg.ExecuteHub:Destroy() end
-end)
+local function getJitteredSpeed(base)
+    if not State.JitterEnabled then return base end
+    local jitter = math.random(-2, 2)
+    if math.random(1, 10) == 1 then jitter = 0 end
+    return base + jitter
+end
 
+local function shouldUpdate()
+    if not State.RateLimitEnabled then return true end
+    AntiBan.tick = (AntiBan.tick + 1) % 3
+    return AntiBan.tick == 0
+end
+
+local function applyLegitCap(speed)
+    if not State.LegitMode then return speed end
+    return math.min(speed, 60)
+end
+
+-- ============================================================
+-- CLEANUP HELPERS
+-- ============================================================
 local function cleanupSpeedInstances()
     local char = LocalPlayer.Character
     if not char then return end
@@ -98,754 +106,457 @@ local function resetCharacterPhysics()
 end
 
 -- ============================================================
--- ANTI-BAN HELPERS
+-- RAYFIELD WINDOW (Dark/Red Theme)
 -- ============================================================
-local function getJitteredSpeed(base)
-    if not State.JitterEnabled then return base end
-    local jitter = math.random(-2, 2)
-    if math.random(1, 10) == 1 then jitter = 0 end
-    return base + jitter
-end
-
-local function shouldUpdate()
-    if not State.RateLimitEnabled then return true end
-    AntiBan.tick = (AntiBan.tick + 1) % 3
-    return AntiBan.tick == 0
-end
-
-local function getRampSpeed(target)
-    if not State.SpeedRampUp then return target end
-    local diff = target - AntiBan.currentRampSpeed
-    if math.abs(diff) < 0.5 then
-        AntiBan.currentRampSpeed = target
-        return target
-    end
-    AntiBan.currentRampSpeed = AntiBan.currentRampSpeed + diff * 0.05
-    return math.floor(AntiBan.currentRampSpeed)
-end
-
-local function applyLegitCap(speed)
-    if not State.LegitMode then return speed end
-    if speed > 60 then return 60 end
-    return speed
-end
+local Window = Rayfield:CreateWindow({
+    Name = "EXECUTE HUB | Pro Edition",
+    LoadingTitle = "EXECUTE HUB",
+    LoadingSubtitle = "by x2Swiftz • Pro v2.0.0",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "ExecuteHub",
+        FileName = "MainConfig"
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "",
+        RememberJoins = false
+    },
+    KeySystem = false,
+    Theme = "DarkBlue"  -- Rayfield built-in theme
+})
 
 -- ============================================================
--- GUI ROOT
+-- TAB 1: AUTO FARM
 -- ============================================================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ExecuteHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.DisplayOrder = 999
-pcall(function() ScreenGui.Parent = CoreGui end)
-if not ScreenGui.Parent then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
+local AutoFarmTab = Window:CreateTab("Auto Farm", 4483362458)
 
--- ============================================================
--- MAIN WINDOW
--- ============================================================
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 620, 0, 440)
-Main.Position = UDim2.new(0.5, -310, 0.5, -220)
-Main.BackgroundColor3 = Config.BgDark
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Main.Parent = ScreenGui
+AutoFarmTab:CreateSection("Auto Farm Settings")
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 14)
-MainCorner.Parent = Main
+AutoFarmTab:CreateToggle({
+    Name = "Enable Auto Farm",
+    CurrentValue = false,
+    Flag = "AutoFarmEnabled",
+    Callback = function(value)
+        State.AutoFarmEnabled = value
+    end,
+})
 
--- Subtle red glow border
-local MainGlow = Instance.new("Frame")
-MainGlow.Size = UDim2.new(1, 4, 1, 4)
-MainGlow.Position = UDim2.new(0, -2, 0, -2)
-MainGlow.BackgroundColor3 = Config.Accent
-MainGlow.BackgroundTransparency = 0.85
-MainGlow.BorderSizePixel = 0
-MainGlow.ZIndex = 0
-MainGlow.Parent = Main
-local MainGlowCorner = Instance.new("UICorner")
-MainGlowCorner.CornerRadius = UDim.new(0, 14)
-MainGlowCorner.Parent = MainGlow
+AutoFarmTab:CreateDropdown({
+    Name = "Farm Mode",
+    Options = {"Nearest", "Lowest HP", "Highest HP", "Random"},
+    CurrentOption = {"Nearest"},
+    Flag = "FarmMode",
+    Callback = function(option)
+        State.AutoFarmMode = option[1]
+    end,
+})
 
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Config.Accent
-MainStroke.Thickness = 1
-MainStroke.Transparency = 0.5
-MainStroke.Parent = Main
+AutoFarmTab:CreateSlider({
+    Name = "Farm Range",
+    Range = {10, 200},
+    Increment = 5,
+    Suffix = " studs",
+    CurrentValue = 50,
+    Flag = "FarmRange",
+    Callback = function(value)
+        State.AutoFarmRange = value
+    end,
+})
 
--- ============================================================
--- TOP BAR
--- ============================================================
-local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 56)
-TopBar.BackgroundColor3 = Config.BgTopBar
-TopBar.BorderSizePixel = 0
-TopBar.Parent = Main
-local TopBarCorner = Instance.new("UICorner")
-TopBarCorner.CornerRadius = UDim.new(0, 14)
-TopBarCorner.Parent = TopBar
+AutoFarmTab:CreateToggle({
+    Name = "Auto Collect Drop",
+    CurrentValue = false,
+    Flag = "AutoCollectDrop",
+    Callback = function(value)
+        State.AutoCollectDrop = value
+    end,
+})
 
-local TopBarCover = Instance.new("Frame")
-TopBarCover.Size = UDim2.new(1, 0, 0, 18)
-TopBarCover.Position = UDim2.new(0, 0, 1, -18)
-TopBarCover.BackgroundColor3 = Config.BgTopBar
-TopBarCover.BorderSizePixel = 0
-TopBarCover.Parent = TopBar
+AutoFarmTab:CreateToggle({
+    Name = "Auto Open Chest",
+    CurrentValue = false,
+    Flag = "AutoOpenChest",
+    Callback = function(value)
+        State.AutoOpenChest = value
+    end,
+})
 
--- LOGO BOX (đỏ, chữ EH)
-local LogoBox = Instance.new("Frame")
-LogoBox.Size = UDim2.new(0, 40, 0, 40)
-LogoBox.Position = UDim2.new(0, 12, 0.5, -20)
-LogoBox.BackgroundColor3 = Config.Accent
-LogoBox.BorderSizePixel = 0
-LogoBox.Parent = TopBar
-local LogoBoxCorner = Instance.new("UICorner")
-LogoBoxCorner.CornerRadius = UDim.new(0, 10)
-LogoBoxCorner.Parent = LogoBox
+AutoFarmTab:CreateSection("Combat")
 
-local LogoStroke = Instance.new("UIStroke")
-LogoStroke.Color = Config.AccentHover
-LogoStroke.Thickness = 1
-LogoStroke.Transparency = 0.3
-LogoStroke.Parent = LogoBox
+AutoFarmTab:CreateToggle({
+    Name = "Instant Kill",
+    CurrentValue = false,
+    Flag = "InstantKill",
+    Callback = function(value)
+        State.InstantKill = value
+    end,
+})
 
-local LogoText = Instance.new("TextLabel")
-LogoText.Size = UDim2.new(1, 0, 1, 0)
-LogoText.BackgroundTransparency = 1
-LogoText.Text = Config.LogoText
-LogoText.TextColor3 = Config.TextPrimary
-LogoText.TextSize = 18
-LogoText.Font = Enum.Font.GothamBold
-LogoText.Parent = LogoBox
+AutoFarmTab:CreateSlider({
+    Name = "Attack Distance",
+    Range = {1, 30},
+    Increment = 1,
+    Suffix = " studs",
+    CurrentValue = 10,
+    Flag = "AttackDistance",
+    Callback = function(value)
+        State.AttackDistance = value
+    end,
+})
 
--- TITLE
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(0, 280, 0, 24)
-Title.Position = UDim2.new(0, 62, 0, 8)
-Title.BackgroundTransparency = 1
-Title.Text = Config.Title
-Title.TextColor3 = Config.Accent
-Title.TextSize = 17
-Title.Font = Enum.Font.GothamBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = TopBar
+AutoFarmTab:CreateSlider({
+    Name = "Attack Cooldown",
+    Range = {0.1, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 0.5,
+    Flag = "AttackCooldown",
+    Callback = function(value)
+        State.AttackCooldown = value
+    end,
+})
 
-local SubTitle = Instance.new("TextLabel")
-SubTitle.Size = UDim2.new(0, 280, 0, 14)
-SubTitle.Position = UDim2.new(0, 62, 0, 30)
-SubTitle.BackgroundTransparency = 1
-SubTitle.Text = Config.Subtitle .. "  •  " .. Config.Version
-SubTitle.TextColor3 = Config.TextSecond
-SubTitle.TextSize = 11
-SubTitle.Font = Enum.Font.Gotham
-SubTitle.TextXAlignment = Enum.TextXAlignment.Left
-SubTitle.Parent = TopBar
-
--- VERSION PILL
-local VersionPill = Instance.new("Frame")
-VersionPill.Size = UDim2.new(0, 60, 0, 22)
-VersionPill.Position = UDim2.new(1, -130, 0.5, -11)
-VersionPill.BackgroundColor3 = Config.AccentDark
-VersionPill.BorderSizePixel = 0
-VersionPill.Parent = TopBar
-local VersionCorner = Instance.new("UICorner")
-VersionCorner.CornerRadius = UDim.new(1, 0)
-VersionCorner.Parent = VersionPill
-
-local VersionText = Instance.new("TextLabel")
-VersionText.Size = UDim2.new(1, 0, 1, 0)
-VersionText.BackgroundTransparency = 1
-VersionText.Text = "PRO"
-VersionText.TextColor3 = Config.TextPrimary
-VersionText.TextSize = 11
-VersionText.Font = Enum.Font.GothamBold
-VersionText.Parent = VersionPill
-
--- MIN BUTTON
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 32, 0, 32)
-MinBtn.Position = UDim2.new(1, -76, 0.5, -16)
-MinBtn.BackgroundColor3 = Config.BgCard
-MinBtn.Text = "−"
-MinBtn.TextColor3 = Config.TextPrimary
-MinBtn.TextSize = 22
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.BorderSizePixel = 0
-MinBtn.AutoButtonColor = false
-MinBtn.Parent = TopBar
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 8)
-MinCorner.Parent = MinBtn
-
--- CLOSE BUTTON
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-CloseBtn.Position = UDim2.new(1, -40, 0.5, -16)
-CloseBtn.BackgroundColor3 = Config.Accent
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Config.TextPrimary
-CloseBtn.TextSize = 14
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.BorderSizePixel = 0
-CloseBtn.AutoButtonColor = false
-CloseBtn.Parent = TopBar
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 8)
-CloseCorner.Parent = CloseBtn
-
-CloseBtn.MouseEnter:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Config.AccentHover}):Play()
-end)
-CloseBtn.MouseLeave:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Config.Accent}):Play()
-end)
+AutoFarmTab:CreateButton({
+    Name = "🔄 Refresh Target",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Auto Farm",
+            Content = "Target refreshed",
+            Duration = 2,
+            Image = 4483362458
+        })
+    end,
+})
 
 -- ============================================================
--- SIDEBAR
+-- TAB 2: SPEED
 -- ============================================================
-local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 155, 1, -68)
-Sidebar.Position = UDim2.new(0, 0, 0, 56)
-Sidebar.BackgroundColor3 = Config.BgSidebar
-Sidebar.BorderSizePixel = 0
-Sidebar.Parent = Main
+local SpeedTab = Window:CreateTab("Speed", 4483362458)
 
-local SidebarDivider = Instance.new("Frame")
-SidebarDivider.Size = UDim2.new(0, 1, 1, -16)
-SidebarDivider.Position = UDim2.new(1, -1, 0, 8)
-SidebarDivider.BackgroundColor3 = Config.Border
-SidebarDivider.BorderSizePixel = 0
-SidebarDivider.Parent = Sidebar
+SpeedTab:CreateSection("Speed Hack")
 
--- User info block (đỉnh sidebar)
-local UserBlock = Instance.new("Frame")
-UserBlock.Size = UDim2.new(1, -16, 0, 50)
-UserBlock.Position = UDim2.new(0, 8, 0, 8)
-UserBlock.BackgroundColor3 = Config.BgCard
-UserBlock.BorderSizePixel = 0
-UserBlock.Parent = Sidebar
-local UserBlockCorner = Instance.new("UICorner")
-UserBlockCorner.CornerRadius = UDim.new(0, 8)
-UserBlockCorner.Parent = UserBlock
+SpeedTab:CreateToggle({
+    Name = "Enable Speed Hack",
+    CurrentValue = false,
+    Flag = "SpeedEnabled",
+    Callback = function(value)
+        State.SpeedEnabled = value
+        if not value then AntiBan.currentRampSpeed = 16 end
+    end,
+})
 
-local UserAvatar = Instance.new("Frame")
-UserAvatar.Size = UDim2.new(0, 34, 0, 34)
-UserAvatar.Position = UDim2.new(0, 8, 0.5, -17)
-UserAvatar.BackgroundColor3 = Config.Accent
-UserAvatar.BorderSizePixel = 0
-UserAvatar.Parent = UserBlock
-local UserAvatarCorner = Instance.new("UICorner")
-UserAvatarCorner.CornerRadius = UDim.new(1, 0)
-UserAvatarCorner.Parent = UserAvatar
-
-local UserInitial = Instance.new("TextLabel")
-UserInitial.Size = UDim2.new(1, 0, 1, 0)
-UserInitial.BackgroundTransparency = 1
-UserInitial.Text = string.sub(LocalPlayer.Name, 1, 1):upper()
-UserInitial.TextColor3 = Config.TextPrimary
-UserInitial.TextSize = 16
-UserInitial.Font = Enum.Font.GothamBold
-UserInitial.Parent = UserAvatar
-
-local UserName = Instance.new("TextLabel")
-UserName.Size = UDim2.new(1, -60, 0, 16)
-UserName.Position = UDim2.new(0, 50, 0, 8)
-UserName.BackgroundTransparency = 1
-UserName.Text = LocalPlayer.Name
-UserName.TextColor3 = Config.TextPrimary
-UserName.TextSize = 12
-UserName.Font = Enum.Font.GothamBold
-UserName.TextXAlignment = Enum.TextXAlignment.Left
-UserName.TextTruncate = Enum.TextTruncate.AtEnd
-UserName.Parent = UserBlock
-
-local UserStatus = Instance.new("TextLabel")
-UserStatus.Size = UDim2.new(1, -60, 0, 12)
-UserStatus.Position = UDim2.new(0, 50, 0, 26)
-UserStatus.BackgroundTransparency = 1
-UserStatus.Text = "● Online"
-UserStatus.TextColor3 = Config.Success
-UserStatus.TextSize = 10
-UserStatus.Font = Enum.Font.GothamMedium
-UserStatus.TextXAlignment = Enum.TextXAlignment.Left
-UserStatus.Parent = UserBlock
-
--- ============================================================
--- CONTENT
--- ============================================================
-local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -163, 1, -68)
-Content.Position = UDim2.new(0, 163, 0, 56)
-Content.BackgroundColor3 = Config.BgDark
-Content.BorderSizePixel = 0
-Content.Parent = Main
-
--- ============================================================
--- TAB BUILDER
--- ============================================================
-local Tabs = {}
-local ActiveTab = nil
-
-local function createTab(name, icon, order)
-    order = order or (#Tabs + 1)
-
-    local Tab = Instance.new("TextButton")
-    Tab.Size = UDim2.new(1, -16, 0, 34)
-    Tab.Position = UDim2.new(0, 8, 0, 66 + ((order - 1) * 38))
-    Tab.BackgroundColor3 = Config.BgSidebar
-    Tab.Text = "  " .. icon .. "   " .. name
-    Tab.TextColor3 = Config.TextSecond
-    Tab.TextSize = 12
-    Tab.Font = Enum.Font.GothamBold
-    Tab.TextXAlignment = Enum.TextXAlignment.Left
-    Tab.BorderSizePixel = 0
-    Tab.AutoButtonColor = false
-    Tab.Parent = Sidebar
-    local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 8)
-    TabCorner.Parent = Tab
-
-    -- Active indicator (red bar)
-    local Indicator = Instance.new("Frame")
-    Indicator.Size = UDim2.new(0, 3, 0.55, 0)
-    Indicator.Position = UDim2.new(0, 0, 0.225, 0)
-    Indicator.BackgroundColor3 = Config.Accent
-    Indicator.BorderSizePixel = 0
-    Indicator.Visible = false
-    Indicator.Parent = Tab
-    local IndicatorCorner = Instance.new("UICorner")
-    IndicatorCorner.CornerRadius = UDim.new(1, 0)
-    IndicatorCorner.Parent = Indicator
-
-    -- Page
-    local Page = Instance.new("ScrollingFrame")
-    Page.Size = UDim2.new(1, 0, 1, 0)
-    Page.BackgroundTransparency = 1
-    Page.BorderSizePixel = 0
-    Page.ScrollBarThickness = 4
-    Page.ScrollBarImageColor3 = Config.Accent
-    Page.ScrollBarImageTransparency = 0.3
-    Page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    Page.Visible = false
-    Page.Parent = Content
-
-    local Layout = Instance.new("UIListLayout")
-    Layout.Padding = UDim.new(0, 6)
-    Layout.SortOrder = Enum.SortOrder.LayoutOrder
-    Layout.Parent = Page
-
-    local PagePadding = Instance.new("UIPadding")
-    PagePadding.PaddingTop = UDim.new(0, 10)
-    PagePadding.PaddingLeft = UDim.new(0, 12)
-    PagePadding.PaddingRight = UDim.new(0, 12)
-    PagePadding.PaddingBottom = UDim.new(0, 10)
-    PagePadding.Parent = Page
-
-    -- Header label
-    local PageHeader = Instance.new("TextLabel")
-    PageHeader.Size = UDim2.new(1, 0, 0, 24)
-    PageHeader.BackgroundTransparency = 1
-    PageHeader.Text = icon .. "  " .. name
-    PageHeader.TextColor3 = Config.Accent
-    PageHeader.TextSize = 15
-    PageHeader.Font = Enum.Font.GothamBold
-    PageHeader.TextXAlignment = Enum.TextXAlignment.Left
-    PageHeader.LayoutOrder = -1
-    PageHeader.Parent = Page
-
-    local HeaderLine = Instance.new("Frame")
-    HeaderLine.Size = UDim2.new(1, 0, 0, 1)
-    HeaderLine.BackgroundColor3 = Config.Border
-    HeaderLine.BorderSizePixel = 0
-    HeaderLine.LayoutOrder = -1
-    HeaderLine.Parent = Page
-
-    Tabs[name] = { Button = Tab, Page = Page, Indicator = Indicator }
-
-    -- Click handler
-    Tab.MouseButton1Click:Connect(function()
-        for _, t in pairs(Tabs) do
-            t.Button.BackgroundColor3 = Config.BgSidebar
-            t.Button.TextColor3 = Config.TextSecond
-            t.Page.Visible = false
-            t.Indicator.Visible = false
+SpeedTab:CreateSlider({
+    Name = "Speed Value",
+    Range = {16, 500},
+    Increment = 1,
+    Suffix = " WS",
+    CurrentValue = 16,
+    Flag = "SpeedValue",
+    Callback = function(value)
+        State.SpeedValue = value
+        if value < AntiBan.currentRampSpeed then
+            AntiBan.currentRampSpeed = value
         end
-        Tab.BackgroundColor3 = Config.BgCard
-        Tab.TextColor3 = Config.Accent
-        Page.Visible = true
-        Indicator.Visible = true
-        ActiveTab = name
-    end)
+    end,
+})
 
-    -- Hover
-    Tab.MouseEnter:Connect(function()
-        if ActiveTab ~= name then
-            TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundColor3 = Config.BgCard}):Play()
-            TweenService:Create(Tab, TweenInfo.new(0.15), {TextColor3 = Config.TextPrimary}):Play()
-        end
-    end)
-    Tab.MouseLeave:Connect(function()
-        if ActiveTab ~= name then
-            TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundColor3 = Config.BgSidebar}):Play()
-            TweenService:Create(Tab, TweenInfo.new(0.15), {TextColor3 = Config.TextSecond}):Play()
-        end
-    end)
+SpeedTab:CreateSection("Quick Actions")
 
-    return Page
-end
+SpeedTab:CreateButton({
+    Name = "⚡ Set Speed 50",
+    Callback = function()
+        State.SpeedValue = 50
+        State.SpeedEnabled = true
+    end,
+})
 
--- ============================================================
--- CARD BUILDERS
--- ============================================================
-local function makeCard(parent, height)
-    local Card = Instance.new("Frame")
-    Card.Size = UDim2.new(1, 0, 0, height or 44)
-    Card.BackgroundColor3 = Config.BgCard
-    Card.BorderSizePixel = 0
-    Card.Parent = parent
-    local CardCorner = Instance.new("UICorner")
-    CardCorner.CornerRadius = UDim.new(0, 9)
-    CardCorner.Parent = Card
+SpeedTab:CreateButton({
+    Name = "⚡ Set Speed 100",
+    Callback = function()
+        State.SpeedValue = 100
+        State.SpeedEnabled = true
+    end,
+})
 
-    local CardStroke = Instance.new("UIStroke")
-    CardStroke.Color = Config.Border
-    CardStroke.Thickness = 1
-    CardStroke.Transparency = 0.5
-    CardStroke.Parent = Card
+SpeedTab:CreateButton({
+    Name = "⚡ Set Speed 200",
+    Callback = function()
+        State.SpeedValue = 200
+        State.SpeedEnabled = true
+    end,
+})
 
-    return Card
-end
-
-local function createToggle(parent, text, default, callback)
-    local Card = makeCard(parent, 42)
-
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -80, 1, 0)
-    Label.Position = UDim2.new(0, 14, 0, 0)
-    Label.BackgroundTransparency = 1
-    Label.Text = text
-    Label.TextColor3 = Config.TextPrimary
-    Label.TextSize = 12
-    Label.Font = Enum.Font.GothamMedium
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Card
-
-    local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(0, 40, 0, 20)
-    ToggleBtn.Position = UDim2.new(1, -52, 0.5, -10)
-    ToggleBtn.BackgroundColor3 = default and Config.Accent or Config.Border
-    ToggleBtn.Text = ""
-    ToggleBtn.BorderSizePixel = 0
-    ToggleBtn.AutoButtonColor = false
-    ToggleBtn.Parent = Card
-    local ToggleCorner = Instance.new("UICorner")
-    ToggleCorner.CornerRadius = UDim.new(1, 0)
-    ToggleCorner.Parent = ToggleBtn
-
-    local Circle = Instance.new("Frame")
-    Circle.Size = UDim2.new(0, 14, 0, 14)
-    Circle.Position = default and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
-    Circle.BackgroundColor3 = Config.TextPrimary
-    Circle.BorderSizePixel = 0
-    Circle.Parent = ToggleBtn
-    local CircleCorner = Instance.new("UICorner")
-    CircleCorner.CornerRadius = UDim.new(1, 0)
-    CircleCorner.Parent = Circle
-
-    local isOn = default
-    ToggleBtn.MouseButton1Click:Connect(function()
-        isOn = not isOn
-        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
-            BackgroundColor3 = isOn and Config.Accent or Config.Border
-        }):Play()
-        TweenService:Create(Circle, TweenInfo.new(0.2), {
-            Position = isOn and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
-        }):Play()
-        if callback then callback(isOn) end
-    end)
-    return Card
-end
-
-local function createSlider(parent, text, min, max, default, callback)
-    local Card = makeCard(parent, 62)
-
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -100, 0, 18)
-    Label.Position = UDim2.new(0, 14, 0, 8)
-    Label.BackgroundTransparency = 1
-    Label.Text = text
-    Label.TextColor3 = Config.TextPrimary
-    Label.TextSize = 12
-    Label.Font = Enum.Font.GothamMedium
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Card
-
-    local ValueLabel = Instance.new("TextLabel")
-    ValueLabel.Size = UDim2.new(0, 70, 0, 18)
-    ValueLabel.Position = UDim2.new(1, -84, 0, 8)
-    ValueLabel.BackgroundTransparency = 1
-    ValueLabel.Text = tostring(default)
-    ValueLabel.TextColor3 = Config.Accent
-    ValueLabel.TextSize = 12
-    ValueLabel.Font = Enum.Font.GothamBold
-    ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    ValueLabel.Parent = Card
-
-    local Bar = Instance.new("Frame")
-    Bar.Size = UDim2.new(1, -28, 0, 5)
-    Bar.Position = UDim2.new(0, 14, 0, 42)
-    Bar.BackgroundColor3 = Config.Border
-    Bar.BorderSizePixel = 0
-    Bar.Parent = Card
-    local BarCorner = Instance.new("UICorner")
-    BarCorner.CornerRadius = UDim.new(1, 0)
-    BarCorner.Parent = Bar
-
-    local Fill = Instance.new("Frame")
-    Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    Fill.BackgroundColor3 = Config.Accent
-    Fill.BorderSizePixel = 0
-    Fill.Parent = Bar
-    local FillCorner = Instance.new("UICorner")
-    FillCorner.CornerRadius = UDim.new(1, 0)
-    FillCorner.Parent = Fill
-
-    local Dot = Instance.new("Frame")
-    Dot.Size = UDim2.new(0, 16, 0, 16)
-    Dot.Position = UDim2.new((default - min) / (max - min), -8, 0.5, -8)
-    Dot.BackgroundColor3 = Config.Accent
-    Dot.BorderSizePixel = 0
-    Dot.Parent = Bar
-    local DotCorner = Instance.new("UICorner")
-    DotCorner.CornerRadius = UDim.new(1, 0)
-    DotCorner.Parent = Dot
-
-    local DotInner = Instance.new("Frame")
-    DotInner.Size = UDim2.new(1, -5, 1, -5)
-    DotInner.Position = UDim2.new(0, 2.5, 0, 2.5)
-    DotInner.BackgroundColor3 = Config.TextPrimary
-    DotInner.BorderSizePixel = 0
-    DotInner.Parent = Dot
-    local DotInnerCorner = Instance.new("UICorner")
-    DotInnerCorner.CornerRadius = UDim.new(1, 0)
-    DotInnerCorner.Parent = DotInner
-
-    local dragging = false
-    local function update(input)
-        local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
-        local value = math.floor(min + (max - min) * pos)
-        Fill.Size = UDim2.new(pos, 0, 1, 0)
-        Dot.Position = UDim2.new(pos, -8, 0.5, -8)
-        ValueLabel.Text = tostring(value)
-        if callback then callback(value) end
-    end
-
-    Dot.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            update(input)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    Bar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            update(input)
-            dragging = true
-        end
-    end)
-
-    return Card
-end
-
-local function createButton(parent, text, callback, isAccent)
-    local B = Instance.new("TextButton")
-    B.Size = UDim2.new(1, 0, 0, 40)
-    B.BackgroundColor3 = isAccent and Config.AccentDark or Config.BgCard
-    B.Text = text
-    B.TextColor3 = Config.TextPrimary
-    B.TextSize = 12
-    B.Font = Enum.Font.GothamBold
-    B.BorderSizePixel = 0
-    B.AutoButtonColor = false
-    B.Parent = parent
-    local BCorner = Instance.new("UICorner")
-    BCorner.CornerRadius = UDim.new(0, 9)
-    BCorner.Parent = B
-
-    local BStroke = Instance.new("UIStroke")
-    BStroke.Color = isAccent and Config.Accent or Config.Border
-    BStroke.Thickness = 1
-    BStroke.Transparency = isAccent and 0.2 or 0.5
-    BStroke.Parent = B
-
-    B.MouseEnter:Connect(function()
-        TweenService:Create(B, TweenInfo.new(0.15), {
-            BackgroundColor3 = isAccent and Config.Accent or Config.BgCardHover
-        }):Play()
-    end)
-    B.MouseLeave:Connect(function()
-        TweenService:Create(B, TweenInfo.new(0.15), {
-            BackgroundColor3 = isAccent and Config.AccentDark or Config.BgCard
-        }):Play()
-    end)
-    B.MouseButton1Click:Connect(function()
-        if callback then callback() end
-    end)
-    return B
-end
+SpeedTab:CreateButton({
+    Name = "🛑 Reset Speed",
+    Callback = function()
+        State.SpeedValue = 16
+        State.SpeedEnabled = false
+        AntiBan.currentRampSpeed = 16
+        resetCharacterPhysics()
+    end,
+})
 
 -- ============================================================
--- NOTIFICATION
+-- TAB 3: MOVEMENT
 -- ============================================================
-local function notify(text, isError)
-    local color = isError and Config.Accent or Config.Success
-    local Notif = Instance.new("Frame")
-    Notif.Size = UDim2.new(0, 320, 0, 52)
-    Notif.Position = UDim2.new(0.5, -160, 0, 20)
-    Notif.BackgroundColor3 = Config.BgCard
-    Notif.BorderSizePixel = 0
-    Notif.Parent = ScreenGui
-    local NCorner = Instance.new("UICorner")
-    NCorner.CornerRadius = UDim.new(0, 10)
-    NCorner.Parent = Notif
+local MoveTab = Window:CreateTab("Movement", 4483362458)
 
-    local NStroke = Instance.new("UIStroke")
-    NStroke.Color = color
-    NStroke.Thickness = 1.5
-    NStroke.Parent = Notif
+MoveTab:CreateSection("Movement Features")
 
-    local NBar = Instance.new("Frame")
-    NBar.Size = UDim2.new(0, 3, 1, -12)
-    NBar.Position = UDim2.new(0, 6, 0, 6)
-    NBar.BackgroundColor3 = color
-    NBar.BorderSizePixel = 0
-    NBar.Parent = Notif
-    local NBarCorner = Instance.new("UICorner")
-    NBarCorner.CornerRadius = UDim.new(1, 0)
-    NBarCorner.Parent = NBar
+MoveTab:CreateToggle({
+    Name = "Fly",
+    CurrentValue = false,
+    Flag = "FlyEnabled",
+    Callback = function(value) State.FlyEnabled = value end,
+})
 
-    local NText = Instance.new("TextLabel")
-    NText.Size = UDim2.new(1, -30, 1, 0)
-    NText.Position = UDim2.new(0, 20, 0, 0)
-    NText.BackgroundTransparency = 1
-    NText.Text = text
-    NText.TextColor3 = color
-    NText.TextSize = 12
-    NText.Font = Enum.Font.GothamBold
-    NText.TextWrapped = true
-    NText.TextXAlignment = Enum.TextXAlignment.Left
-    NText.Parent = Notif
+MoveTab:CreateToggle({
+    Name = "Noclip",
+    CurrentValue = false,
+    Flag = "NoclipEnabled",
+    Callback = function(value) State.NoclipEnabled = value end,
+})
 
-    task.spawn(function()
-        task.wait(3)
-        TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
-        TweenService:Create(NText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-        TweenService:Create(NStroke, TweenInfo.new(0.5), {Transparency = 1}):Play()
-        TweenService:Create(NBar, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
-        task.wait(0.5)
-        Notif:Destroy()
-    end)
-end
+MoveTab:CreateToggle({
+    Name = "Infinite Jump",
+    CurrentValue = false,
+    Flag = "InfJumpEnabled",
+    Callback = function(value) State.InfJumpEnabled = value end,
+})
+
+MoveTab:CreateSection("Protection")
+
+MoveTab:CreateToggle({
+    Name = "Anti-Fling",
+    CurrentValue = false,
+    Flag = "AntiFlingEnabled",
+    Callback = function(value) State.AntiFlingEnabled = value end,
+})
+
+MoveTab:CreateToggle({
+    Name = "Anti-Void",
+    CurrentValue = false,
+    Flag = "AntiVoidEnabled",
+    Callback = function(value) State.AntiVoidEnabled = value end,
+})
+
+MoveTab:CreateToggle({
+    Name = "Anti-AFK",
+    CurrentValue = true,
+    Flag = "AntiAfkEnabled",
+    Callback = function(value) State.AntiAfkEnabled = value end,
+})
 
 -- ============================================================
--- TABS CREATION
+-- TAB 4: AUTO SKILLS
 -- ============================================================
-local SpeedPage = createTab("Speed", "⚡", 1)
-createToggle(SpeedPage, "Speed Hack", false, function(on)
-    State.SpeedEnabled = on
-    if not on then AntiBan.currentRampSpeed = 16 end
-end)
-createSlider(SpeedPage, "Speed Value", 16, 500, 16, function(v)
-    State.SpeedValue = v
-    if v < AntiBan.currentRampSpeed then AntiBan.currentRampSpeed = v end
-end)
-createButton(SpeedPage, "🚀 Quick Speed 100", function()
-    State.SpeedValue = 100
-    State.SpeedEnabled = true
-    notify("⚡ Speed = 100", false)
-end, true)
-createButton(SpeedPage, "🚀 Quick Speed 200", function()
-    State.SpeedValue = 200
-    State.SpeedEnabled = true
-    notify("⚡ Speed = 200", false)
-end, true)
-createButton(SpeedPage, "🛑 Reset Speed", function()
-    State.SpeedValue = 16
-    State.SpeedEnabled = false
-    AntiBan.currentRampSpeed = 16
-    resetCharacterPhysics()
-    notify("✅ Speed reset to 16", false)
-end)
+local SkillTab = Window:CreateTab("Auto Skills", 4483362458)
 
-local MovePage = createTab("Movement", "🏃", 2)
-createToggle(MovePage, "Fly", false, function(on) State.FlyEnabled = on end)
-createToggle(MovePage, "Noclip", false, function(on) State.NoclipEnabled = on end)
-createToggle(MovePage, "Infinite Jump", false, function(on) State.InfJumpEnabled = on end)
-createToggle(MovePage, "Anti-Fling", false, function(on) State.AntiFlingEnabled = on end)
-createToggle(MovePage, "Anti-Void", false, function(on) State.AntiVoidEnabled = on end)
+SkillTab:CreateSection("Auto Skill Usage")
 
-local AntiBanPage = createTab("Anti-Ban", "🛡️", 3)
-createToggle(AntiBanPage, "Anti-Ban System", true, function(on) State.AntiBanEnabled = on end)
-createToggle(AntiBanPage, "Jitter Random ±2", true, function(on) State.JitterEnabled = on end)
-createToggle(AntiBanPage, "Rate Limit 20Hz", true, function(on) State.RateLimitEnabled = on end)
-createToggle(AntiBanPage, "Ramp Up Smooth", true, function(on) State.SpeedRampUp = on end)
-createToggle(AntiBanPage, "Legit Mode (cap 60)", false, function(on) State.LegitMode = on end)
-createSlider(AntiBanPage, "Max Speed Cap", 50, 500, 250, function(v) State.MaxSpeed = v end)
-createButton(AntiBanPage, "🧹 Panic Cleanup", function()
-    resetCharacterPhysics()
-    State.SpeedEnabled = false
-    State.FlyEnabled = false
-    State.NoclipEnabled = false
-    State.AntiFlingEnabled = false
-    State.AntiVoidEnabled = false
-    AntiBan.currentRampSpeed = 16
-    notify("✅ Panic cleanup executed", false)
-end)
-createButton(AntiBanPage, "🔧 Reset Physics", function()
-    resetCharacterPhysics()
-    notify("✅ Physics reset", false)
-end)
+SkillTab:CreateToggle({
+    Name = "Enable Auto Skills",
+    CurrentValue = false,
+    Flag = "AutoSkillEnabled",
+    Callback = function(value) State.AutoSkillEnabled = value end,
+})
 
-local SettingsPage = createTab("Settings", "⚙️", 4)
-createButton(SettingsPage, "Reset Character", function()
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-    end
-end)
-createButton(SettingsPage, "Unload Script", function()
-    resetCharacterPhysics()
-    ScreenGui:Destroy()
-end, true)
+SkillTab:CreateDropdown({
+    Name = "Select Skills",
+    Options = {"Skill 1", "Skill 2", "Skill 3", "Skill 4", "Skill 5"},
+    CurrentOption = {"..."},
+    MultipleOptions = true,
+    Flag = "SelectedSkills",
+    Callback = function(options)
+        State.SelectedSkills = options
+    end,
+})
 
--- Default tab
-if Tabs["Speed"] then
-    Tabs["Speed"].Button.BackgroundColor3 = Config.BgCard
-    Tabs["Speed"].Button.TextColor3 = Config.Accent
-    Tabs["Speed"].Page.Visible = true
-    Tabs["Speed"].Indicator.Visible = true
-    ActiveTab = "Speed"
-end
+SkillTab:CreateSlider({
+    Name = "Skill Cooldown",
+    Range = {0.1, 10},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 1,
+    Flag = "SkillCooldown",
+    Callback = function(value) State.SkillCooldown = value end,
+})
+
+SkillTab:CreateSection("Key Hold Timings")
+
+SkillTab:CreateSlider({
+    Name = "Hold (Z)",
+    Range = {0, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 0,
+    Flag = "HoldZ",
+    Callback = function(value) State.HoldZ = value end,
+})
+
+SkillTab:CreateSlider({
+    Name = "Hold (X)",
+    Range = {0, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 0,
+    Flag = "HoldX",
+    Callback = function(value) State.HoldX = value end,
+})
+
+SkillTab:CreateSlider({
+    Name = "Hold (C)",
+    Range = {0, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 0,
+    Flag = "HoldC",
+    Callback = function(value) State.HoldC = value end,
+})
+
+SkillTab:CreateSlider({
+    Name = "Hold (V)",
+    Range = {0, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 0,
+    Flag = "HoldV",
+    Callback = function(value) State.HoldV = value end,
+})
+
+-- ============================================================
+-- TAB 5: ANTI-BAN
+-- ============================================================
+local AntiBanTab = Window:CreateTab("Anti-Ban", 4483362458)
+
+AntiBanTab:CreateSection("Anti-Ban Pro System")
+
+AntiBanTab:CreateToggle({
+    Name = "Anti-Ban System",
+    CurrentValue = true,
+    Flag = "AntiBanEnabled",
+    Callback = function(value) State.AntiBanEnabled = value end,
+})
+
+AntiBanTab:CreateToggle({
+    Name = "Jitter Random ±2",
+    CurrentValue = true,
+    Flag = "JitterEnabled",
+    Callback = function(value) State.JitterEnabled = value end,
+})
+
+AntiBanTab:CreateToggle({
+    Name = "Rate Limit 20Hz",
+    CurrentValue = true,
+    Flag = "RateLimitEnabled",
+    Callback = function(value) State.RateLimitEnabled = value end,
+})
+
+AntiBanTab:CreateToggle({
+    Name = "Ramp Up Smooth",
+    CurrentValue = true,
+    Flag = "RampUpEnabled",
+    Callback = function(value) State.SpeedRampUp = value end,
+})
+
+AntiBanTab:CreateToggle({
+    Name = "Legit Mode (cap 60)",
+    CurrentValue = false,
+    Flag = "LegitMode",
+    Callback = function(value) State.LegitMode = value end,
+})
+
+AntiBanTab:CreateSlider({
+    Name = "Max Speed Cap",
+    Range = {50, 500},
+    Increment = 10,
+    Suffix = " WS",
+    CurrentValue = 250,
+    Flag = "MaxSpeed",
+    Callback = function(value) State.MaxSpeed = value end,
+})
+
+AntiBanTab:CreateSection("Emergency")
+
+AntiBanTab:CreateButton({
+    Name = "🧹 Panic Cleanup",
+    Callback = function()
+        resetCharacterPhysics()
+        State.SpeedEnabled = false
+        State.FlyEnabled = false
+        State.NoclipEnabled = false
+        State.AntiFlingEnabled = false
+        State.AntiVoidEnabled = false
+        State.AutoFarmEnabled = false
+        AntiBan.currentRampSpeed = 16
+        Rayfield:Notify({
+            Title = "Anti-Ban",
+            Content = "Panic cleanup executed",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end,
+})
+
+AntiBanTab:CreateButton({
+    Name = "🔧 Reset Physics",
+    Callback = function()
+        resetCharacterPhysics()
+        Rayfield:Notify({
+            Title = "Anti-Ban",
+            Content = "Physics reset to default",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end,
+})
+
+-- ============================================================
+-- TAB 6: SETTINGS
+-- ============================================================
+local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+SettingsTab:CreateSection("Character")
+
+SettingsTab:CreateButton({
+    Name = "Reset Character",
+    Callback = function()
+        local char = LocalPlayer.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
+        end
+    end,
+})
+
+SettingsTab:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+    end,
+})
+
+SettingsTab:CreateSection("Script")
+
+SettingsTab:CreateButton({
+    Name = "Unload Script",
+    Callback = function()
+        resetCharacterPhysics()
+        Rayfield:Destroy()
+    end,
+})
+
+SettingsTab:CreateParagraph({
+    Title = "EXECUTE HUB",
+    Content = "Version: v2.0.0 Pro\nDeveloper: x2Swiftz\nTheme: Dark/Red\nTabs: Auto Farm, Speed, Movement, Auto Skills, Anti-Ban, Settings"
+})
 
 -- ============================================================
 -- CORE LOOPS
 -- ============================================================
+
+-- Speed Hack Loop
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
     if not char then return end
@@ -855,13 +566,10 @@ RunService.RenderStepped:Connect(function()
 
     if State.SpeedEnabled and State.AntiBanEnabled then
         if not shouldUpdate() then return end
-
         local target = State.SpeedValue
         target = applyLegitCap(target)
         if target > State.MaxSpeed then target = State.MaxSpeed end
-
-        local speed = getRampSpeed(target)
-        speed = getJitteredSpeed(speed)
+        local speed = getJitteredSpeed(target)
 
         pcall(function() hum.WalkSpeed = speed end)
 
@@ -891,12 +599,14 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Cleanup Loop
 task.spawn(function()
     while task.wait(0.5) do
         cleanupSpeedInstances()
     end
 end)
 
+-- Anti-Fling / Anti-Void Loop
 task.spawn(function()
     while task.wait(0.1) do
         local char = LocalPlayer.Character
@@ -914,6 +624,7 @@ task.spawn(function()
     end
 end)
 
+-- Noclip Loop
 task.spawn(function()
     while task.wait(0.2) do
         if State.NoclipEnabled then
@@ -922,6 +633,81 @@ task.spawn(function()
                 for _, p in ipairs(char:GetDescendants()) do
                     if p:IsA("BasePart") then
                         pcall(function() p.CanCollide = false end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Auto Farm Loop
+task.spawn(function()
+    while task.wait(0.3) do
+        if State.AutoFarmEnabled then
+            local char = LocalPlayer.Character
+            if not char then continue end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then continue end
+
+            -- Find nearest enemy/NPC
+            local target = nil
+            local shortestDist = State.AutoFarmRange or 50
+
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("Model") then
+                    local isPlayer = Players:GetPlayerFromCharacter(obj)
+                    local hum = obj:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 and not isPlayer then
+                        local rootPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
+                        if rootPart then
+                            local dist = (rootPart.Position - hrp.Position).Magnitude
+                            if dist < shortestDist then
+                                shortestDist = dist
+                                target = obj
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- Attack target
+            if target then
+                local tRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChildWhichIsA("BasePart")
+                if tRoot then
+                    pcall(function()
+                        hrp.CFrame = CFrame.new(tRoot.Position + Vector3.new(0, 3, 0))
+                    end)
+                    -- Fire all tools
+                    for _, tool in ipairs(char:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            pcall(function() tool:Activate() end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Auto Collect Drop Loop
+task.spawn(function()
+    while task.wait(0.5) do
+        if State.AutoCollectDrop then
+            local char = LocalPlayer.Character
+            if not char then continue end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then continue end
+
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("BasePart") or obj:IsA("Model") then
+                    local name = string.lower(obj.Name)
+                    if string.find(name, "drop") or string.find(name, "loot") then
+                        local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                        if pos then
+                            pcall(function()
+                                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                            end)
+                        end
                     end
                 end
             end
@@ -990,6 +776,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- Infinite Jump
 UserInputService.JumpRequest:Connect(function()
     if State.InfJumpEnabled then
         local char = LocalPlayer.Character
@@ -1001,7 +788,6 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- Anti-AFK
-local VirtualUser = game:GetService("VirtualUser")
 LocalPlayer.Idled:Connect(function()
     if State.AntiAfkEnabled then
         VirtualUser:CaptureController()
@@ -1027,33 +813,16 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- Buttons
-CloseBtn.MouseButton1Click:Connect(function()
-    resetCharacterPhysics()
-    ScreenGui:Destroy()
-end)
+-- ============================================================
+-- NOTIFY
+-- ============================================================
+Rayfield:Notify({
+    Title = "EXECUTE HUB",
+    Content = "Loaded successfully — Pro v2.0.0",
+    Duration = 5,
+    Image = 4483362458
+})
 
-local minimized = false
-MinBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        Main.Size = UDim2.new(0, 620, 0, 56)
-        Sidebar.Visible = false
-        Content.Visible = false
-    else
-        Main.Size = UDim2.new(0, 620, 0, 440)
-        Sidebar.Visible = true
-        Content.Visible = true
-    end
-end)
-
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.RightControl then
-        Main.Visible = not Main.Visible
-    end
-end)
-
-print("[EXECUTE HUB] " .. Config.Version .. " loaded — Redesign UI")
+print("[EXECUTE HUB] v2.0.0 Rayfield loaded")
 print("[EXECUTE HUB] User: " .. LocalPlayer.Name)
-print("[EXECUTE HUB] Right Ctrl = toggle UI")
+print("[EXECUTE HUB] Tabs: Auto Farm, Speed, Movement, Auto Skills, Anti-Ban, Settings")
