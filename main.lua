@@ -1,8 +1,9 @@
 --[[
 ================================================================
-    EXECUTE HUB - v6.0.0 UNIVERSAL (No Steal - All Maps)
-    Xóa toàn bộ steal system. Chỉ giữ Universal features
-    Features: Speed, Fly, Noclip, Anti-Ban, TP Save/Load, Coords HUD
+    EXECUTE HUB - v7.0.0 UNIVERSAL BYPASS EDITION
+    Bỏ qua mọi yêu cầu: Quest/Level/Rebirth → vào vùng khóa
+    Layout: Loading → Main, sidebar trong suốt, content đen
+    Features: Speed, Fly, Noclip, Bypass Gate, Save/TP, Coords HUD
     Hoạt động trên MỌI bản đồ Roblox
 ================================================================
 ]]
@@ -24,12 +25,13 @@ local LocalPlayer        = Players.LocalPlayer
 -- CONFIG
 -- ============================================================
 local Config = {
-    BgMain          = Color3.fromRGB(15, 15, 18),
-    BgPanel         = Color3.fromRGB(25, 25, 30),
-    BgCard          = Color3.fromRGB(35, 35, 42),
-    BgHover         = Color3.fromRGB(48, 48, 58),
+    BgMain          = Color3.fromRGB(12, 12, 14),
+    BgPanel         = Color3.fromRGB(20, 20, 24),
+    BgCard          = Color3.fromRGB(28, 28, 34),
+    BgContent       = Color3.fromRGB(8, 8, 10),          -- Nền đen content
+    BgHover         = Color3.fromRGB(45, 45, 55),
     BgSidebar       = Color3.fromRGB(10, 10, 12),
-    BgSidebarTransp = 0.1,
+    BgSidebarTransp = 0.35,                              -- Sidebar trong suốt
     Accent          = Color3.fromRGB(255, 35, 45),
     AccentHover     = Color3.fromRGB(255, 60, 70),
     TextPrimary     = Color3.fromRGB(245, 245, 250),
@@ -39,15 +41,14 @@ local Config = {
     BorderTransp    = 0.9,
     Success         = Color3.fromRGB(60, 220, 110),
     Warning         = Color3.fromRGB(255, 180, 40),
-    Version         = "v6.0.0-Universal",
+    Version         = "v7.0.0-Bypass",
     Title           = "EXECUTE HUB",
     LogoText        = "EH",
     Width           = 500,
-    Height          = 360,
-    -- Update system
+    Height          = 380,
     UpdateURL       = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/version.txt",
     ScriptURL       = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/main.lua",
-    CurrentVersion  = "6.0.0"
+    CurrentVersion  = "7.0.0"
 }
 
 -- ============================================================
@@ -70,10 +71,14 @@ local State = {
     RateLimitEnabled = true,
     LegitMode        = false,
     RampUpEnabled    = true,
+    -- Bypass System
+    BypassEnabled    = false,
+    BypassRange      = 500,
+    AutoEnterLocked  = false,
+    RemoveCollision  = false,
     -- Utils
     ShowCoords       = true,
     ShowFPS          = false,
-    ShowPing         = false,
     AntiAfkEnabled   = true,
     AutoUpdateCheck  = true,
     -- Save/TP
@@ -90,10 +95,14 @@ local AntiBanState = {
 -- ============================================================
 pcall(function()
     if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
+    if CoreGui:FindFirstChild("ExecuteHubLoading") then CoreGui.ExecuteHubLoading:Destroy() end
 end)
 pcall(function()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg and pg:FindFirstChild("ExecuteHub") then pg.ExecuteHub:Destroy() end
+    if pg then
+        if pg:FindFirstChild("ExecuteHub") then pg.ExecuteHub:Destroy() end
+        if pg:FindFirstChild("ExecuteHubLoading") then pg.ExecuteHubLoading:Destroy() end
+    end
 end)
 
 local function cleanupSpeedInstances()
@@ -120,6 +129,123 @@ local function resetCharacterPhysics()
 end
 
 -- ============================================================
+-- LOADING SCREEN
+-- ============================================================
+local LoadingGui = Instance.new("ScreenGui")
+LoadingGui.Name = "ExecuteHubLoading"
+LoadingGui.ResetOnSpawn = false
+LoadingGui.IgnoreGuiInset = true
+LoadingGui.DisplayOrder = 1000
+pcall(function() LoadingGui.Parent = CoreGui end)
+if not LoadingGui.Parent then LoadingGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local LoadFrame = Instance.new("Frame")
+LoadFrame.Size = UDim2.new(0, 340, 0, 180)
+LoadFrame.Position = UDim2.new(0.5, -170, 0.5, -90)
+LoadFrame.BackgroundColor3 = Config.BgMain
+LoadFrame.BackgroundTransparency = 0.05
+LoadFrame.BorderSizePixel = 0
+LoadFrame.Parent = LoadingGui
+
+local LoadCorner = Instance.new("UICorner")
+LoadCorner.CornerRadius = UDim.new(0, 14)
+LoadCorner.Parent = LoadFrame
+
+local LoadStroke = Instance.new("UIStroke")
+LoadStroke.Color = Config.Accent
+LoadStroke.Thickness = 1.5
+LoadStroke.Transparency = 0.3
+LoadStroke.Parent = LoadFrame
+
+local LoadLogo = Instance.new("TextLabel")
+LoadLogo.Size = UDim2.new(1, 0, 0, 40)
+LoadLogo.Position = UDim2.new(0, 0, 0, 20)
+LoadLogo.BackgroundTransparency = 1
+LoadLogo.Text = Config.Title
+LoadLogo.TextColor3 = Config.Accent
+LoadLogo.TextSize = 24
+LoadLogo.Font = Enum.Font.GothamBlack
+LoadLogo.Parent = LoadFrame
+
+local LoadVersion = Instance.new("TextLabel")
+LoadVersion.Size = UDim2.new(1, 0, 0, 14)
+LoadVersion.Position = UDim2.new(0, 0, 0, 58)
+LoadVersion.BackgroundTransparency = 1
+LoadVersion.Text = Config.Version
+LoadVersion.TextColor3 = Config.TextMuted
+LoadVersion.TextSize = 10
+LoadVersion.Font = Enum.Font.Gotham
+LoadVersion.Parent = LoadFrame
+
+local LoadBarBg = Instance.new("Frame")
+LoadBarBg.Size = UDim2.new(0, 260, 0, 6)
+LoadBarBg.Position = UDim2.new(0.5, -130, 0, 100)
+LoadBarBg.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+LoadBarBg.BorderSizePixel = 0
+LoadBarBg.Parent = LoadFrame
+
+local LoadBarBgCorner = Instance.new("UICorner")
+LoadBarBgCorner.CornerRadius = UDim.new(1, 0)
+LoadBarBgCorner.Parent = LoadBarBg
+
+local LoadBarFill = Instance.new("Frame")
+LoadBarFill.Size = UDim2.new(0, 0, 1, 0)
+LoadBarFill.BackgroundColor3 = Config.Accent
+LoadBarFill.BorderSizePixel = 0
+LoadBarFill.Parent = LoadBarBg
+
+local LoadBarFillCorner = Instance.new("UICorner")
+LoadBarFillCorner.CornerRadius = UDim.new(1, 0)
+LoadBarFillCorner.Parent = LoadBarFill
+
+local LoadStatus = Instance.new("TextLabel")
+LoadStatus.Size = UDim2.new(1, 0, 0, 14)
+LoadStatus.Position = UDim2.new(0, 0, 0, 120)
+LoadStatus.BackgroundTransparency = 1
+LoadStatus.Text = "Initializing..."
+LoadStatus.TextColor3 = Config.TextSecond
+LoadStatus.TextSize = 10
+LoadStatus.Font = Enum.Font.GothamBold
+LoadStatus.Parent = LoadFrame
+
+-- Loading animation
+local loadingSteps = {
+    "Loading modules...",
+    "Checking updates...",
+    "Setting up UI...",
+    "Initializing bypass...",
+    "Ready!"
+}
+
+local loadDone = false
+task.spawn(function()
+    for i = 1, 5 do
+        LoadStatus.Text = loadingSteps[i]
+        local targetSize = i / 5
+        TweenService:Create(LoadBarFill, TweenInfo.new(0.35, Enum.EasingStyle.Quart), {
+            Size = UDim2.new(targetSize, 0, 1, 0)
+        }):Play()
+        task.wait(0.4)
+    end
+    loadDone = true
+    task.wait(0.3)
+    TweenService:Create(LoadFrame, TweenInfo.new(0.4), {
+        BackgroundTransparency = 1
+    }):Play()
+    TweenService:Create(LoadLogo, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(LoadVersion, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(LoadBarBg, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(LoadBarFill, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(LoadStatus, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+    TweenService:Create(LoadStroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
+    task.wait(0.5)
+    LoadingGui:Destroy()
+end)
+
+-- Wait for loading to complete before showing main UI
+repeat task.wait(0.1) until loadDone or not LoadingGui.Parent
+
+-- ============================================================
 -- AUTO UPDATE CHECK
 -- ============================================================
 local function checkForUpdates()
@@ -129,12 +255,9 @@ local function checkForUpdates()
         version = string.gsub(version, "%s", "")
         if version ~= Config.CurrentVersion then
             task.wait(1)
-            local shouldUpdate = true
-            if shouldUpdate then
-                notify("New version found: " .. version .. " - Reloading...", false)
-                task.wait(2)
-                loadstring(game:HttpGet(Config.ScriptURL))()
-            end
+            notify("New version: " .. version .. " - Reloading...", false)
+            task.wait(2)
+            loadstring(game:HttpGet(Config.ScriptURL))()
         end
     end)
 end
@@ -238,7 +361,7 @@ local SubLabel = Instance.new("TextLabel")
 SubLabel.Size = UDim2.new(0, 240, 0, 12)
 SubLabel.Position = UDim2.new(0, 66, 0, 22)
 SubLabel.BackgroundTransparency = 1
-SubLabel.Text = "Universal • " .. Config.Version
+SubLabel.Text = "Bypass Edition • " .. Config.Version
 SubLabel.TextColor3 = Config.TextMuted
 SubLabel.TextSize = 9
 SubLabel.Font = Enum.Font.Gotham
@@ -277,7 +400,7 @@ CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
 -- ============================================================
--- SIDEBAR
+-- SIDEBAR (trong suốt)
 -- ============================================================
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 130, 1, -48)
@@ -354,19 +477,25 @@ UserStatus.TextXAlignment = Enum.TextXAlignment.Left
 UserStatus.Parent = UserBlock
 
 -- ============================================================
--- CONTENT AREA
+-- CONTENT (nền đen)
 -- ============================================================
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -138, 1, -48)
 Content.Position = UDim2.new(0, 138, 0, 40)
-Content.BackgroundTransparency = 1
+Content.BackgroundColor3 = Config.BgContent
+Content.BackgroundTransparency = 0
+Content.BorderSizePixel = 0
 Content.Parent = Main
+
+local ContentCorner = Instance.new("UICorner")
+ContentCorner.CornerRadius = UDim.new(0, 12)
+ContentCorner.Parent = Content
 
 local PageTitle = Instance.new("TextLabel")
 PageTitle.Size = UDim2.new(1, -16, 0, 22)
 PageTitle.Position = UDim2.new(0, 8, 0, 2)
 PageTitle.BackgroundTransparency = 1
-PageTitle.Text = "MOVEMENT"
+PageTitle.Text = "BYPASS"
 PageTitle.TextColor3 = Config.TextPrimary
 PageTitle.TextSize = 14
 PageTitle.Font = Enum.Font.GothamBlack
@@ -459,29 +588,12 @@ local StatsText = Instance.new("TextLabel")
 StatsText.Size = UDim2.new(1, -12, 0, 12)
 StatsText.Position = UDim2.new(0, 6, 0, 44)
 StatsText.BackgroundTransparency = 1
-StatsText.Text = "FPS: --  Ping: --"
+StatsText.Text = "FPS: --"
 StatsText.TextColor3 = Config.TextSecond
 StatsText.TextSize = 9
 StatsText.Font = Enum.Font.Code
 StatsText.TextXAlignment = Enum.TextXAlignment.Left
 StatsText.Parent = CoordHUD
-
--- Update HUD
-task.spawn(function()
-    local fpsCounter = 0
-    local fpsTimer = 0
-    RunService.RenderStepped:Connect(function(dt)
-        fpsCounter = fpsCounter + 1
-        fpsTimer = fpsTimer + dt
-        if fpsTimer >= 0.5 then
-            if State.ShowFPS then
-                StatsText.Text = string.format("FPS: %d", math.floor(fpsCounter / fpsTimer))
-            end
-            fpsCounter = 0
-            fpsTimer = 0
-        end
-    end)
-end)
 
 task.spawn(function()
     while task.wait(0.1) do
@@ -499,6 +611,20 @@ task.spawn(function()
             CoordHUD.Visible = false
         end
     end
+end)
+
+task.spawn(function()
+    local fpsCounter = 0
+    local fpsTimer = 0
+    RunService.RenderStepped:Connect(function(dt)
+        fpsCounter = fpsCounter + 1
+        fpsTimer = fpsTimer + dt
+        if fpsTimer >= 0.5 then
+            StatsText.Text = string.format("FPS: %d", math.floor(fpsCounter / fpsTimer))
+            fpsCounter = 0
+            fpsTimer = 0
+        end
+    end)
 end)
 
 -- ============================================================
@@ -896,6 +1022,279 @@ local function clearPage()
 end
 
 -- ============================================================
+-- BYPASS GATE SYSTEM
+-- ============================================================
+-- Tìm và vô hiệu hóa mọi barrier/gate yêu cầu quest/level/rebirth
+local bypassedGates = {}
+local bypassedCollisions = {}
+
+local function bypassAllGates()
+    local count = 0
+    local barrierKeywords = {
+        "gate", "barrier", "wall", "door", "block", "lock",
+        "required", "rebirth", "level", "quest", "unlock",
+        "invisible", "region", "zone", "portal"
+    }
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            local isBarrier = false
+            for _, kw in ipairs(barrierKeywords) do
+                if string.find(name, kw) then
+                    isBarrier = true
+                    break
+                end
+            end
+            if isBarrier then
+                pcall(function()
+                    obj.CanCollide = false
+                    obj.CanTouch = false
+                    obj.CanQuery = false
+                    obj.Transparency = 1
+                    obj.Massless = true
+                    if not bypassedGates[obj] then
+                        bypassedGates[obj] = true
+                        count = count + 1
+                    end
+                end)
+            end
+        elseif obj:IsA("Model") then
+            local name = string.lower(obj.Name)
+            for _, kw in ipairs(barrierKeywords) do
+                if string.find(name, kw) then
+                    for _, part in ipairs(obj:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            pcall(function()
+                                part.CanCollide = false
+                                part.CanTouch = false
+                                part.CanQuery = false
+                                part.Transparency = 1
+                                part.Massless = true
+                            end)
+                        end
+                    end
+                    count = count + 1
+                    break
+                end
+            end
+        end
+    end
+    return count
+end
+
+-- Vô hiệu hóa mọi script server kiểm tra gate
+local function disableGateChecks()
+    local count = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            local name = string.lower(obj.Name)
+            if string.find(name, "barrier") or string.find(name, "gate") 
+               or string.find(name, "door") or string.find(name, "block") then
+                for _, script in ipairs(obj:GetDescendants()) do
+                    if script:IsA("Script") or script:IsA("LocalScript") then
+                        pcall(function()
+                            script.Disabled = true
+                        end)
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+    return count
+end
+
+-- Vô hiệu hóa mọi ProximityPrompt yêu cầu quest/level/rebirth
+local function bypassAllPrompts()
+    local count = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            local actionText = string.lower(obj.ActionText or "")
+            local objectText = string.lower(obj.ObjectText or "")
+            local name = string.lower(obj.Name)
+            if string.find(actionText, "unlock") or string.find(actionText, "required")
+               or string.find(actionText, "rebirth") or string.find(actionText, "level")
+               or string.find(objectText, "required") or string.find(objectText, "locked")
+               or string.find(name, "gate") or string.find(name, "barrier") then
+                pcall(function()
+                    obj.HoldDuration = 0
+                    obj.MaxActivationDistance = 9999
+                    obj.RequiresLineOfSight = false
+                    obj.Enabled = true
+                end)
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+-- Fire tất cả prompt để mở khóa
+local function activateAllPrompts()
+    local count = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            pcall(function()
+                obj.HoldDuration = 0
+                obj.MaxActivationDistance = 9999
+                obj.RequiresLineOfSight = false
+                if fireproximityprompt then
+                    fireproximityprompt(obj)
+                    count = count + 1
+                end
+            end)
+        end
+    end
+    return count
+end
+
+-- Teleport xuyên qua gate
+local function teleportThroughGate()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    -- Tìm gate gần nhất
+    local nearest = nil
+    local shortest = State.BypassRange
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            if string.find(name, "gate") or string.find(name, "barrier") 
+               or string.find(name, "door") or string.find(name, "wall") then
+                local dist = (obj.Position - hrp.Position).Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    nearest = obj
+                end
+            end
+        end
+    end
+
+    if nearest then
+        -- Teleport xuyên qua gate
+        local forward = (nearest.Position - hrp.Position).Unit
+        local targetPos = nearest.Position + forward * 20
+        pcall(function()
+            hrp.CFrame = CFrame.new(targetPos)
+        end)
+        return true
+    end
+    return false
+end
+
+-- Disable collision toàn bộ (đi xuyên mọi thứ)
+local function disableAllCollision()
+    local count = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.CanCollide then
+            if obj.Parent ~= LocalPlayer.Character then
+                pcall(function()
+                    obj.CanCollide = false
+                    bypassedCollisions[obj] = obj.CanCollide
+                end)
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+-- Restore collision
+local function restoreAllCollision()
+    for obj, original in pairs(bypassedCollisions) do
+        if obj and obj.Parent then
+            pcall(function() obj.CanCollide = original end)
+        end
+    end
+    bypassedCollisions = {}
+end
+
+-- ============================================================
+-- PAGE: BYPASS
+-- ============================================================
+local function buildBypassPage()
+    clearPage()
+    PageTitle.Text = "BYPASS"
+
+    createSection(Page, "Bypass Gate System")
+    createToggle(Page, "🚪 Bypass All Gates", State.BypassEnabled, function(v)
+        State.BypassEnabled = v
+        if v then
+            local count = bypassAllGates()
+            notify("Bypassed " .. count .. " gates", false)
+        else
+            notify("Bypass disabled", false)
+        end
+    end)
+    createSlider(Page, "Bypass Range", 50, 1000, State.BypassRange, "studs", function(v) State.BypassRange = v end)
+
+    createSection(Page, "Auto Actions")
+    createToggle(Page, "🔓 Remove All Collision", State.RemoveCollision, function(v)
+        State.RemoveCollision = v
+        if v then
+            local count = disableAllCollision()
+            notify("Removed " .. count .. " collisions", false)
+        else
+            restoreAllCollision()
+            notify("Collisions restored", false)
+        end
+    end)
+    createToggle(Page, "🎯 Auto Enter Locked Zones", State.AutoEnterLocked, function(v)
+        State.AutoEnterLocked = v
+    end)
+
+    createSection(Page, "Quick Actions")
+    createButton(Page, "🚪 Bypass All Gates Now", function()
+        local c1 = bypassAllGates()
+        local c2 = disableGateChecks()
+        local c3 = bypassAllPrompts()
+        notify("Gates: " .. c1 .. " | Checks: " .. c2 .. " | Prompts: " .. c3, false)
+    end, true)
+    createButton(Page, "🔓 Activate All Prompts", function()
+        local count = activateAllPrompts()
+        notify("Activated " .. count .. " prompts", false)
+    end)
+    createButton(Page, "🚀 Teleport Through Nearest Gate", function()
+        if teleportThroughGate() then
+            notify("Teleported through gate", false)
+        else
+            notify("No gate found nearby", true)
+        end
+    end)
+    createButton(Page, "🧹 Restore All Gates", function()
+        for obj, _ in pairs(bypassedGates) do
+            if obj and obj.Parent then
+                pcall(function()
+                    obj.CanCollide = true
+                    obj.CanTouch = true
+                    obj.CanQuery = true
+                    obj.Transparency = 0
+                end)
+            end
+        end
+        bypassedGates = {}
+        restoreAllCollision()
+        notify("All gates restored", false)
+    end)
+
+    createSection(Page, "Auto-Apply")
+    createToggle(Page, "Auto Bypass on Zone Change", State.BypassEnabled, function(v)
+        State.BypassEnabled = v
+    end)
+    createButton(Page, "🔄 Force Refresh Bypass", function()
+        bypassAllGates()
+        bypassAllPrompts()
+        if State.RemoveCollision then
+            disableAllCollision()
+        end
+        notify("Bypass refreshed", false)
+    end)
+end
+
+-- ============================================================
 -- PAGE: MOVEMENT
 -- ============================================================
 local function buildMovementPage()
@@ -1124,6 +1523,8 @@ local function buildAntiBanPage()
         State.NoclipEnabled = false
         State.AntiFlingEnabled = false
         State.AntiVoidEnabled = false
+        State.BypassEnabled = false
+        State.RemoveCollision = false
         AntiBanState.currentRampSpeed = 16
         notify("Panic cleanup executed", false)
     end, true)
@@ -1133,7 +1534,7 @@ local function buildAntiBanPage()
     end)
 
     createSection(Page, "Diagnostics")
-    createButton(Page, "🔍 Test HTTP (Update Check)", function()
+    createButton(Page, "🔍 Test HTTP", function()
         pcall(function()
             local version = game:HttpGet(Config.UpdateURL)
             version = string.gsub(version, "%s", "")
@@ -1156,7 +1557,6 @@ local function buildSettingsPage()
 
     createSection(Page, "Display")
     createToggle(Page, "Show Coordinate HUD", State.ShowCoords, function(v) State.ShowCoords = v end)
-    createToggle(Page, "Show FPS", State.ShowFPS, function(v) State.ShowFPS = v end)
 
     createSection(Page, "Updates")
     createToggle(Page, "Auto Update Check", State.AutoUpdateCheck, function(v) State.AutoUpdateCheck = v end)
@@ -1197,9 +1597,10 @@ end
 -- TAB SYSTEM
 -- ============================================================
 local Tabs = {}
-local ActiveTab = "Movement"
+local ActiveTab = "Bypass"
 
 local tabDefs = {
+    {name = "Bypass",    icon = "🚪", builder = buildBypassPage},
     {name = "Movement",  icon = "🏃", builder = buildMovementPage},
     {name = "Save/TP",   icon = "📍", builder = buildSavePage},
     {name = "Anti-Ban",  icon = "🛡️", builder = buildAntiBanPage},
@@ -1270,12 +1671,12 @@ for i, def in ipairs(tabDefs) do
     end)
 end
 
-if Tabs["Movement"] then
-    Tabs["Movement"].Button.BackgroundTransparency = 0.5
-    Tabs["Movement"].Button.TextColor3 = Config.TextPrimary
-    Tabs["Movement"].Indicator.Visible = true
+if Tabs["Bypass"] then
+    Tabs["Bypass"].Button.BackgroundTransparency = 0.5
+    Tabs["Bypass"].Button.TextColor3 = Config.TextPrimary
+    Tabs["Bypass"].Indicator.Visible = true
 end
-buildMovementPage()
+buildBypassPage()
 
 -- ============================================================
 -- MIN / CLOSE / KEYBIND
@@ -1382,6 +1783,32 @@ end)
 task.spawn(function()
     while task.wait(0.5) do
         cleanupSpeedInstances()
+    end
+end)
+
+-- ============================================================
+-- BYPASS LOOP (auto re-apply)
+-- ============================================================
+task.spawn(function()
+    while task.wait(2) do
+        if State.BypassEnabled then
+            pcall(bypassAllGates)
+            pcall(bypassAllPrompts)
+        end
+        if State.RemoveCollision then
+            pcall(disableAllCollision)
+        end
+    end
+end)
+
+-- ============================================================
+-- AUTO ENTER LOCKED ZONES
+-- ============================================================
+task.spawn(function()
+    while task.wait(3) do
+        if State.AutoEnterLocked and State.BypassEnabled then
+            pcall(teleportThroughGate)
+        end
     end
 end)
 
@@ -1522,17 +1949,23 @@ LocalPlayer.CharacterAdded:Connect(function()
         flyCleanup = nil
     end
     AntiBanState.currentRampSpeed = 16
+    task.wait(2)
+    if State.BypassEnabled then
+        pcall(bypassAllGates)
+        pcall(bypassAllPrompts)
+    end
 end)
 
 -- ============================================================
 -- STARTUP
 -- ============================================================
+task.wait(1)
 notify(Config.Title .. " " .. Config.Version .. " loaded", false)
 
 print("[EXECUTE HUB] " .. Config.Version .. " loaded")
 print("[EXECUTE HUB] User: " .. LocalPlayer.Name)
 print("[EXECUTE HUB] Place: " .. game.PlaceId)
-print("[EXECUTE HUB] Tabs: Movement, Save/TP, Anti-Ban, Settings")
+print("[EXECUTE HUB] Tabs: Bypass, Movement, Save/TP, Anti-Ban, Settings")
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
 print("[EXECUTE HUB] Coordinate HUD: ON (draggable)")
 
