@@ -1,9 +1,9 @@
 --[[
 ================================================================
-    EXECUTE HUB - v5.1.0 (STEAL FIX + SPEED BOOST + COORDS HUD)
-    Fix: Instant Steal không hoạt động → dùng Remote fallback
-    Improve: Speed đa phương pháp mạnh hơn
-    Add: Coordinate HUD hiển thị vị trí hiện tại
+    EXECUTE HUB - v6.0.0 UNIVERSAL (No Steal - All Maps)
+    Xóa toàn bộ steal system. Chỉ giữ Universal features
+    Features: Speed, Fly, Noclip, Anti-Ban, TP Save/Load, Coords HUD
+    Hoạt động trên MỌI bản đồ Roblox
 ================================================================
 ]]
 
@@ -17,7 +17,6 @@ local TweenService       = game:GetService("TweenService")
 local CoreGui            = game:GetService("CoreGui")
 local VirtualUser        = game:GetService("VirtualUser")
 local Workspace          = game:GetService("Workspace")
-local ReplicatedStorage  = game:GetService("ReplicatedStorage")
 local TeleportService    = game:GetService("TeleportService")
 local LocalPlayer        = Players.LocalPlayer
 
@@ -40,37 +39,45 @@ local Config = {
     BorderTransp    = 0.9,
     Success         = Color3.fromRGB(60, 220, 110),
     Warning         = Color3.fromRGB(255, 180, 40),
-    Version         = "v5.1.0",
+    Version         = "v6.0.0-Universal",
     Title           = "EXECUTE HUB",
     LogoText        = "EH",
     Width           = 500,
-    Height          = 360
+    Height          = 360,
+    -- Update system
+    UpdateURL       = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/version.txt",
+    ScriptURL       = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/main.lua",
+    CurrentVersion  = "6.0.0"
 }
 
 -- ============================================================
 -- STATE
 -- ============================================================
 local State = {
+    -- Movement
     SpeedEnabled     = false,
     SpeedValue       = 16,
     MaxSpeed         = 250,
+    FlyEnabled       = false,
+    FlySpeed         = 60,
+    NoclipEnabled    = false,
+    InfJumpEnabled   = false,
+    AntiFlingEnabled = false,
+    AntiVoidEnabled  = false,
+    -- Anti-Ban
     AntiBanEnabled   = true,
     JitterEnabled    = true,
     RateLimitEnabled = true,
     LegitMode        = false,
     RampUpEnabled    = true,
-    FlyEnabled       = false,
-    NoclipEnabled    = false,
-    InfJumpEnabled   = false,
-    AntiFlingEnabled = false,
-    AntiVoidEnabled  = false,
-    AutoSteal        = false,
-    NoCooldownSteal  = false,
-    InstantSteal     = false,
-    StealRange       = 30,
+    -- Utils
     ShowCoords       = true,
-    SavedPositions   = {},
+    ShowFPS          = false,
+    ShowPing         = false,
     AntiAfkEnabled   = true,
+    AutoUpdateCheck  = true,
+    -- Save/TP
+    SavedPositions   = {},
 }
 
 local AntiBanState = {
@@ -110,6 +117,26 @@ local function resetCharacterPhysics()
         pcall(function() hum.PlatformStand = false end)
     end
     cleanupSpeedInstances()
+end
+
+-- ============================================================
+-- AUTO UPDATE CHECK
+-- ============================================================
+local function checkForUpdates()
+    if not State.AutoUpdateCheck then return end
+    pcall(function()
+        local version = game:HttpGet(Config.UpdateURL)
+        version = string.gsub(version, "%s", "")
+        if version ~= Config.CurrentVersion then
+            task.wait(1)
+            local shouldUpdate = true
+            if shouldUpdate then
+                notify("New version found: " .. version .. " - Reloading...", false)
+                task.wait(2)
+                loadstring(game:HttpGet(Config.ScriptURL))()
+            end
+        end
+    end)
 end
 
 -- ============================================================
@@ -172,6 +199,7 @@ TopCover.BackgroundTransparency = 0.3
 TopCover.BorderSizePixel = 0
 TopCover.Parent = TopBar
 
+-- Window dots
 local DotsFrame = Instance.new("Frame")
 DotsFrame.Size = UDim2.new(0, 50, 0, 12)
 DotsFrame.Position = UDim2.new(0, 12, 0.5, -6)
@@ -207,10 +235,10 @@ TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 TitleLabel.Parent = TopBar
 
 local SubLabel = Instance.new("TextLabel")
-SubLabel.Size = UDim2.new(0, 200, 0, 12)
+SubLabel.Size = UDim2.new(0, 240, 0, 12)
 SubLabel.Position = UDim2.new(0, 66, 0, 22)
 SubLabel.BackgroundTransparency = 1
-SubLabel.Text = "Pro Edition • " .. Config.Version
+SubLabel.Text = "Universal • " .. Config.Version
 SubLabel.TextColor3 = Config.TextMuted
 SubLabel.TextSize = 9
 SubLabel.Font = Enum.Font.Gotham
@@ -271,6 +299,7 @@ SidebarDivider.BackgroundTransparency = 0.85
 SidebarDivider.BorderSizePixel = 0
 SidebarDivider.Parent = Sidebar
 
+-- User block
 local UserBlock = Instance.new("Frame")
 UserBlock.Size = UDim2.new(1, -12, 0, 36)
 UserBlock.Position = UDim2.new(0, 6, 0, 8)
@@ -325,7 +354,7 @@ UserStatus.TextXAlignment = Enum.TextXAlignment.Left
 UserStatus.Parent = UserBlock
 
 -- ============================================================
--- CONTENT
+-- CONTENT AREA
 -- ============================================================
 local Content = Instance.new("Frame")
 Content.Size = UDim2.new(1, -138, 1, -48)
@@ -337,7 +366,7 @@ local PageTitle = Instance.new("TextLabel")
 PageTitle.Size = UDim2.new(1, -16, 0, 22)
 PageTitle.Position = UDim2.new(0, 8, 0, 2)
 PageTitle.BackgroundTransparency = 1
-PageTitle.Text = "MAIN"
+PageTitle.Text = "MOVEMENT"
 PageTitle.TextColor3 = Config.TextPrimary
 PageTitle.TextSize = 14
 PageTitle.Font = Enum.Font.GothamBlack
@@ -379,12 +408,12 @@ PagePadding.PaddingBottom = UDim.new(0, 4)
 PagePadding.Parent = Page
 
 -- ============================================================
--- COORDINATE HUD (floating)
+-- COORDINATE HUD
 -- ============================================================
 local CoordHUD = Instance.new("Frame")
 CoordHUD.Name = "CoordHUD"
-CoordHUD.Size = UDim2.new(0, 180, 0, 50)
-CoordHUD.Position = UDim2.new(1, -190, 0, 60)
+CoordHUD.Size = UDim2.new(0, 190, 0, 62)
+CoordHUD.Position = UDim2.new(1, -200, 0, 60)
 CoordHUD.BackgroundColor3 = Config.BgCard
 CoordHUD.BackgroundTransparency = 0.2
 CoordHUD.BorderSizePixel = 0
@@ -415,10 +444,10 @@ CoordTitle.TextXAlignment = Enum.TextXAlignment.Left
 CoordTitle.Parent = CoordHUD
 
 local CoordText = Instance.new("TextLabel")
-CoordText.Size = UDim2.new(1, -12, 0, 26)
+CoordText.Size = UDim2.new(1, -12, 0, 18)
 CoordText.Position = UDim2.new(0, 6, 0, 18)
 CoordText.BackgroundTransparency = 1
-CoordText.Text = "X: 0.0\nY: 0.0  Z: 0.0"
+CoordText.Text = "X: 0.0   Y: 0.0\nZ: 0.0"
 CoordText.TextColor3 = Config.TextPrimary
 CoordText.TextSize = 10
 CoordText.Font = Enum.Font.Code
@@ -426,7 +455,34 @@ CoordText.TextXAlignment = Enum.TextXAlignment.Left
 CoordText.TextYAlignment = Enum.TextYAlignment.Top
 CoordText.Parent = CoordHUD
 
--- Update HUD mỗi 0.1s
+local StatsText = Instance.new("TextLabel")
+StatsText.Size = UDim2.new(1, -12, 0, 12)
+StatsText.Position = UDim2.new(0, 6, 0, 44)
+StatsText.BackgroundTransparency = 1
+StatsText.Text = "FPS: --  Ping: --"
+StatsText.TextColor3 = Config.TextSecond
+StatsText.TextSize = 9
+StatsText.Font = Enum.Font.Code
+StatsText.TextXAlignment = Enum.TextXAlignment.Left
+StatsText.Parent = CoordHUD
+
+-- Update HUD
+task.spawn(function()
+    local fpsCounter = 0
+    local fpsTimer = 0
+    RunService.RenderStepped:Connect(function(dt)
+        fpsCounter = fpsCounter + 1
+        fpsTimer = fpsTimer + dt
+        if fpsTimer >= 0.5 then
+            if State.ShowFPS then
+                StatsText.Text = string.format("FPS: %d", math.floor(fpsCounter / fpsTimer))
+            end
+            fpsCounter = 0
+            fpsTimer = 0
+        end
+    end)
+end)
+
 task.spawn(function()
     while task.wait(0.1) do
         if State.ShowCoords then
@@ -436,7 +492,7 @@ task.spawn(function()
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     local p = hrp.Position
-                    CoordText.Text = string.format("X: %.1f\nY: %.1f  Z: %.1f", p.X, p.Y, p.Z)
+                    CoordText.Text = string.format("X: %.1f   Y: %.1f\nZ: %.1f", p.X, p.Y, p.Z)
                 end
             end
         else
@@ -774,7 +830,7 @@ end
 -- ============================================================
 -- NOTIFICATION
 -- ============================================================
-local function notify(text, isError)
+function notify(text, isError)
     local color = isError and Config.Accent or Config.Success
     local N = Instance.new("Frame")
     N.Size = UDim2.new(0, 260, 0, 44)
@@ -840,245 +896,48 @@ local function clearPage()
 end
 
 -- ============================================================
--- STEAL SYSTEM (FIXED)
+-- PAGE: MOVEMENT
 -- ============================================================
-
--- Cache: tìm prompt có sẵn
-local stealPromptCache = {}
-
-local function refreshStealCache()
-    stealPromptCache = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            local n = string.lower(obj.Name)
-            local a = string.lower(obj.ActionText or "")
-            local o = string.lower(obj.ObjectText or "")
-            if string.find(n, "steal") or string.find(a, "steal") 
-               or string.find(n, "egg")   or string.find(n, "grab")
-               or string.find(n, "take")  or string.find(n, "collect")
-               or string.find(o, "steal") or string.find(o, "egg") then
-                table.insert(stealPromptCache, obj)
-            end
-        elseif obj:IsA("ClickDetector") then
-            local n = string.lower(obj.Name)
-            if string.find(n, "steal") or string.find(n, "egg")
-               or string.find(n, "grab") or string.find(n, "take") then
-                table.insert(stealPromptCache, obj)
-            end
-        end
-    end
-    return stealPromptCache
-end
-
--- Fire prompt NGAY LẬP TỨC (không delay)
-local function instantFirePrompt(prompt)
-    if not prompt or not prompt.Parent then return false end
-    local success = false
-    pcall(function()
-        if prompt:IsA("ProximityPrompt") then
-            prompt.HoldDuration = 0
-            prompt.MaxActivationDistance = 9999
-            prompt.RequiresLineOfSight = false
-            prompt.Enabled = true
-            -- Try fire 3 lần liên tiếp để đảm bảo
-            if fireproximityprompt then
-                fireproximityprompt(prompt)
-                success = true
-            end
-        elseif prompt:IsA("ClickDetector") then
-            prompt.MaxActivationDistance = 9999
-            if fireclickdetector then
-                fireclickdetector(prompt)
-                success = true
-            end
-        end
-    end)
-    return success
-end
-
--- Tìm remote event "steal" trong game
-local stealRemotes = {}
-local function findStealRemotes()
-    stealRemotes = {}
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            local n = string.lower(obj.Name)
-            if string.find(n, "steal") or string.find(n, "grab")
-               or string.find(n, "take") or string.find(n, "collect")
-               or string.find(n, "egg") then
-                table.insert(stealRemotes, obj)
-            end
-        end
-    end
-    return stealRemotes
-end
-
--- Fire tất cả remote steal
-local function fireAllStealRemotes(target)
-    local count = 0
-    for _, remote in ipairs(stealRemotes) do
-        pcall(function()
-            if remote:IsA("RemoteEvent") then
-                if target then
-                    remote:FireServer(target)
-                else
-                    remote:FireServer()
-                end
-                count = count + 1
-            elseif remote:IsA("RemoteFunction") then
-                if target then
-                    remote:InvokeServer(target)
-                else
-                    remote:InvokeServer()
-                end
-                count = count + 1
-            end
-        end)
-    end
-    return count
-end
-
--- Tìm prompt gần nhất
-local function findNearestStealPrompt()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-
-    refreshStealCache()
-    local nearest = nil
-    local shortest = State.StealRange
-
-    for _, p in ipairs(stealPromptCache) do
-        local parent = p.Parent
-        if parent then
-            local part = parent:IsA("BasePart") and parent or parent:FindFirstChildWhichIsA("BasePart")
-            if part then
-                local dist = (part.Position - hrp.Position).Magnitude
-                if dist < shortest then
-                    shortest = dist
-                    nearest = { prompt = p, part = part, distance = dist }
-                end
-            end
-        end
-    end
-    return nearest
-end
-
--- ============================================================
--- INSTANT STEAL FUNCTION (đã fix)
--- ============================================================
-local function doInstantSteal()
-    local char = LocalPlayer.Character
-    if not char then return 0 end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return 0 end
-
-    local fired = 0
-
-    -- Bước 1: Refresh cache
-    refreshStealCache()
-    findStealRemotes()
-
-    -- Bước 2: Fire tất cả prompt trong cache (KHÔNG teleport)
-    for _, prompt in ipairs(stealPromptCache) do
-        if prompt.Parent then
-            if instantFirePrompt(prompt) then
-                fired = fired + 1
-            end
-        end
-    end
-
-    -- Bước 3: Fire tất cả remote steal
-    local remoteFired = fireAllStealRemotes()
-    fired = fired + remoteFired
-
-    -- Bước 4: Nếu không có prompt/remote → tìm character/NPC gần nhất
-    if fired == 0 then
-        local nearest = nil
-        local shortest = State.StealRange
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj ~= char then
-                local targetHrp = obj:FindFirstChild("HumanoidRootPart")
-                if targetHrp and (not Players:GetPlayerFromCharacter(obj)) then
-                    local dist = (targetHrp.Position - hrp.Position).Magnitude
-                    if dist < shortest then
-                        shortest = dist
-                        nearest = targetHrp
-                    end
-                end
-            end
-        end
-        if nearest then
-            -- Teleport đến và fire tất cả remote
-            pcall(function()
-                hrp.CFrame = CFrame.new(nearest.Position + Vector3.new(0, 3, 0))
-            end)
-            fired = fired + fireAllStealRemotes(nearest.Parent)
-        end
-    end
-
-    return fired
-end
-
--- ============================================================
--- PAGE BUILDER: MAIN
--- ============================================================
-local function buildMainPage()
+local function buildMovementPage()
     clearPage()
-    PageTitle.Text = "MAIN"
+    PageTitle.Text = "MOVEMENT"
 
-    createSection(Page, "Steal")
-    createToggle(Page, "Auto Steal", State.AutoSteal, function(v) State.AutoSteal = v end)
-    createToggle(Page, "No Cooldown Steal", State.NoCooldownSteal, function(v) State.NoCooldownSteal = v end)
-    createToggle(Page, "Instant Steal (Fire All)", State.InstantSteal, function(v) 
-        State.InstantSteal = v 
-        if v then
-            local count = doInstantSteal()
-            notify("Instant Steal: fired " .. count .. " actions", false)
-        end
-    end)
-    createSlider(Page, "Steal Range", 5, 200, State.StealRange, "studs", function(v) State.StealRange = v end)
-
-    createSection(Page, "Steal Actions")
-    createButton(Page, "🔥 Instant Fire All Steals", function()
-        local count = doInstantSteal()
-        if count > 0 then
-            notify("Fired " .. count .. " steal actions", false)
-        else
-            notify("No steal prompts/remotes found", true)
-        end
-    end, true)
-    createButton(Page, "🎯 Teleport to Nearest Steal", function()
-        local nearest = findNearestStealPrompt()
-        if nearest then
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = CFrame.new(nearest.part.Position + Vector3.new(0, 3, 0))
-                    notify("Teleported to steal", false)
-                end
-            end
-        else
-            notify("No steal in range", true)
-        end
-    end)
-    createButton(Page, "🔍 Scan Steal Prompts", function()
-        refreshStealCache()
-        findStealRemotes()
-        notify("Found " .. #stealPromptCache .. " prompts, " .. #stealRemotes .. " remotes", false)
-    end)
-
-    createSection(Page, "Movement")
+    createSection(Page, "Speed")
     createToggle(Page, "Speed Hack", State.SpeedEnabled, function(v) State.SpeedEnabled = v end)
     createSlider(Page, "Speed Value", 16, 500, State.SpeedValue, "WS", function(v) State.SpeedValue = v end)
+    createSlider(Page, "Max Speed Cap", 50, 500, State.MaxSpeed, "WS", function(v) State.MaxSpeed = v end)
+    createButton(Page, "⚡ Quick 100", function()
+        State.SpeedValue = 100
+        State.SpeedEnabled = true
+        notify("Speed = 100", false)
+    end)
+    createButton(Page, "⚡ Quick 200", function()
+        State.SpeedValue = 200
+        State.SpeedEnabled = true
+        notify("Speed = 200", false)
+    end)
+    createButton(Page, "🛑 Reset Speed", function()
+        State.SpeedValue = 16
+        State.SpeedEnabled = false
+        AntiBanState.currentRampSpeed = 16
+        resetCharacterPhysics()
+        notify("Speed reset", false)
+    end, true)
+
+    createSection(Page, "Fly")
     createToggle(Page, "Fly", State.FlyEnabled, function(v) State.FlyEnabled = v end)
+    createSlider(Page, "Fly Speed", 30, 300, State.FlySpeed, "studs/s", function(v) State.FlySpeed = v end)
+
+    createSection(Page, "Movement Extras")
     createToggle(Page, "Noclip", State.NoclipEnabled, function(v) State.NoclipEnabled = v end)
+    createToggle(Page, "Infinite Jump", State.InfJumpEnabled, function(v) State.InfJumpEnabled = v end)
+    createToggle(Page, "Anti-Fling", State.AntiFlingEnabled, function(v) State.AntiFlingEnabled = v end)
+    createToggle(Page, "Anti-Void", State.AntiVoidEnabled, function(v) State.AntiVoidEnabled = v end)
+    createToggle(Page, "Anti-AFK", State.AntiAfkEnabled, function(v) State.AntiAfkEnabled = v end)
 end
 
 -- ============================================================
--- PAGE BUILDER: SAVE / TELEPORT
+-- PAGE: SAVE / TELEPORT
 -- ============================================================
 local SaveInputValue = "spot1"
 local TPInputValue = "0, 50, 0"
@@ -1088,19 +947,14 @@ local function buildSavePage()
     PageTitle.Text = "SAVE / TELEPORT"
 
     createSection(Page, "Save Position")
-    createTextInput(Page, "Save Name", "e.g. base, farm", SaveInputValue, function(v)
-        SaveInputValue = v
-    end)
+    createTextInput(Page, "Save Name", "e.g. base, farm", SaveInputValue, function(v) SaveInputValue = v end)
     createButton(Page, "💾 Save Current Position", function()
         local char = LocalPlayer.Character
         if not char then return notify("No character", true) end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hrp then return notify("No HRP", true) end
         State.SavedPositions[SaveInputValue] = {
-            x = hrp.Position.X,
-            y = hrp.Position.Y,
-            z = hrp.Position.Z,
-            time = os.time()
+            x = hrp.Position.X, y = hrp.Position.Y, z = hrp.Position.Z, time = os.time()
         }
         notify("Saved: " .. SaveInputValue, false)
         buildSavePage()
@@ -1117,15 +971,8 @@ local function buildSavePage()
         Card.BorderSizePixel = 0
         Card.Parent = Page
 
-        local CC = Instance.new("UICorner")
-        CC.CornerRadius = UDim.new(0, 6)
-        CC.Parent = Card
-
-        local CS = Instance.new("UIStroke")
-        CS.Color = Config.Border
-        CS.Thickness = 1
-        CS.Transparency = 0.92
-        CS.Parent = Card
+        local CC = Instance.new("UICorner") CC.CornerRadius = UDim.new(0, 6) CC.Parent = Card
+        local CS = Instance.new("UIStroke") CS.Color = Config.Border CS.Thickness = 1 CS.Transparency = 0.92 CS.Parent = Card
 
         local N = Instance.new("TextLabel")
         N.Size = UDim2.new(1, -10, 0, 12)
@@ -1160,11 +1007,7 @@ local function buildSavePage()
         TPBtn.BorderSizePixel = 0
         TPBtn.AutoButtonColor = false
         TPBtn.Parent = Card
-
-        local TPC = Instance.new("UICorner")
-        TPC.CornerRadius = UDim.new(0, 4)
-        TPC.Parent = TPBtn
-
+        local TPC = Instance.new("UICorner") TPC.CornerRadius = UDim.new(0, 4) TPC.Parent = TPBtn
         TPBtn.MouseButton1Click:Connect(function()
             local char = LocalPlayer.Character
             if char then
@@ -1187,11 +1030,7 @@ local function buildSavePage()
         DBtn.BorderSizePixel = 0
         DBtn.AutoButtonColor = false
         DBtn.Parent = Card
-
-        local DC = Instance.new("UICorner")
-        DC.CornerRadius = UDim.new(0, 4)
-        DC.Parent = DBtn
-
+        local DC = Instance.new("UICorner") DC.CornerRadius = UDim.new(0, 4) DC.Parent = DBtn
         DBtn.MouseButton1Click:Connect(function()
             State.SavedPositions[name] = nil
             notify("Deleted " .. name, false)
@@ -1209,15 +1048,11 @@ local function buildSavePage()
         Empty.TextSize = 10
         Empty.Font = Enum.Font.Gotham
         Empty.Parent = Page
-        local ECC = Instance.new("UICorner")
-        ECC.CornerRadius = UDim.new(0, 6)
-        ECC.Parent = Empty
+        local ECC = Instance.new("UICorner") ECC.CornerRadius = UDim.new(0, 6) ECC.Parent = Empty
     end
 
     createSection(Page, "Teleport to XYZ")
-    createTextInput(Page, "Coordinates (x, y, z)", "0, 50, 0", TPInputValue, function(v)
-        TPInputValue = v
-    end)
+    createTextInput(Page, "Coordinates (x, y, z)", "0, 50, 0", TPInputValue, function(v) TPInputValue = v end)
     createButton(Page, "📍 Teleport to XYZ", function()
         local coords = {}
         for n in string.gmatch(TPInputValue, "[^,%s]+") do
@@ -1264,27 +1099,22 @@ local function buildSavePage()
 end
 
 -- ============================================================
--- PAGE BUILDER: SETTINGS
+-- PAGE: ANTI-BAN
 -- ============================================================
-local function buildSettingsPage()
+local function buildAntiBanPage()
     clearPage()
-    PageTitle.Text = "SETTINGS"
+    PageTitle.Text = "ANTI-BAN"
 
-    createSection(Page, "Display")
-    createToggle(Page, "Show Coordinate HUD", State.ShowCoords, function(v) State.ShowCoords = v end)
-
-    createSection(Page, "Anti-Ban")
+    createSection(Page, "Core")
     createToggle(Page, "Anti-Ban System", State.AntiBanEnabled, function(v) State.AntiBanEnabled = v end)
     createToggle(Page, "Jitter ±2", State.JitterEnabled, function(v) State.JitterEnabled = v end)
     createToggle(Page, "Rate Limit 20Hz", State.RateLimitEnabled, function(v) State.RateLimitEnabled = v end)
-    createToggle(Page, "Legit Mode (60)", State.LegitMode, function(v) State.LegitMode = v end)
-    createToggle(Page, "Ramp Up", State.RampUpEnabled, function(v) State.RampUpEnabled = v end)
-    createSlider(Page, "Max Speed Cap", 50, 500, State.MaxSpeed, "WS", function(v) State.MaxSpeed = v end)
+    createToggle(Page, "Ramp Up Smooth", State.RampUpEnabled, function(v) State.RampUpEnabled = v end)
+    createToggle(Page, "Legit Mode (cap 60)", State.LegitMode, function(v) State.LegitMode = v end)
 
     createSection(Page, "Protection")
     createToggle(Page, "Anti-Fling", State.AntiFlingEnabled, function(v) State.AntiFlingEnabled = v end)
     createToggle(Page, "Anti-Void", State.AntiVoidEnabled, function(v) State.AntiVoidEnabled = v end)
-    createToggle(Page, "Infinite Jump", State.InfJumpEnabled, function(v) State.InfJumpEnabled = v end)
 
     createSection(Page, "Emergency")
     createButton(Page, "🧹 Panic Cleanup", function()
@@ -1292,9 +1122,8 @@ local function buildSettingsPage()
         State.SpeedEnabled = false
         State.FlyEnabled = false
         State.NoclipEnabled = false
-        State.AutoSteal = false
-        State.NoCooldownSteal = false
-        State.InstantSteal = false
+        State.AntiFlingEnabled = false
+        State.AntiVoidEnabled = false
         AntiBanState.currentRampSpeed = 16
         notify("Panic cleanup executed", false)
     end, true)
@@ -1303,26 +1132,78 @@ local function buildSettingsPage()
         notify("Physics reset", false)
     end)
 
+    createSection(Page, "Diagnostics")
+    createButton(Page, "🔍 Test HTTP (Update Check)", function()
+        pcall(function()
+            local version = game:HttpGet(Config.UpdateURL)
+            version = string.gsub(version, "%s", "")
+            notify("Latest version: " .. version, false)
+        end)
+    end)
+    createButton(Page, "🔄 Force Update Script", function()
+        notify("Reloading script...", false)
+        task.wait(1)
+        loadstring(game:HttpGet(Config.ScriptURL))()
+    end, true)
+end
+
+-- ============================================================
+-- PAGE: SETTINGS
+-- ============================================================
+local function buildSettingsPage()
+    clearPage()
+    PageTitle.Text = "SETTINGS"
+
+    createSection(Page, "Display")
+    createToggle(Page, "Show Coordinate HUD", State.ShowCoords, function(v) State.ShowCoords = v end)
+    createToggle(Page, "Show FPS", State.ShowFPS, function(v) State.ShowFPS = v end)
+
+    createSection(Page, "Updates")
+    createToggle(Page, "Auto Update Check", State.AutoUpdateCheck, function(v) State.AutoUpdateCheck = v end)
+    createButton(Page, "🔄 Check for Updates", function()
+        checkForUpdates()
+        notify("Checking for updates...", false)
+    end)
+
     createSection(Page, "Script")
     createButton(Page, "Rejoin Server", function()
         TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end)
+    createButton(Page, "Server Hop", function()
+        local servers = game:GetService("HttpService"):JSONDecode(
+            game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+        )
+        if servers and servers.data then
+            for _, s in ipairs(servers.data) do
+                if s.playing < s.maxPlayers and s.id ~= game.JobId then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
+                    break
+                end
+            end
+        end
     end)
     createButton(Page, "Unload Script", function()
         resetCharacterPhysics()
         ScreenGui:Destroy()
     end, true)
+
+    createSection(Page, "About")
+    createButton(Page, "Execute Hub " .. Config.Version, function()
+        notify("Execute Hub " .. Config.Version, false)
+    end)
 end
 
 -- ============================================================
 -- TAB SYSTEM
 -- ============================================================
 local Tabs = {}
-local ActiveTab = "Main"
+local ActiveTab = "Movement"
 
 local tabDefs = {
-    {name = "Main",     icon = "⚔️", builder = buildMainPage},
-    {name = "Save/TP",  icon = "📍", builder = buildSavePage},
-    {name = "Settings", icon = "⚙️", builder = buildSettingsPage}
+    {name = "Movement",  icon = "🏃", builder = buildMovementPage},
+    {name = "Save/TP",   icon = "📍", builder = buildSavePage},
+    {name = "Anti-Ban",  icon = "🛡️", builder = buildAntiBanPage},
+    {name = "Settings",  icon = "⚙️", builder = buildSettingsPage}
 }
 
 for i, def in ipairs(tabDefs) do
@@ -1389,12 +1270,12 @@ for i, def in ipairs(tabDefs) do
     end)
 end
 
-if Tabs["Main"] then
-    Tabs["Main"].Button.BackgroundTransparency = 0.5
-    Tabs["Main"].Button.TextColor3 = Config.TextPrimary
-    Tabs["Main"].Indicator.Visible = true
+if Tabs["Movement"] then
+    Tabs["Movement"].Button.BackgroundTransparency = 0.5
+    Tabs["Movement"].Button.TextColor3 = Config.TextPrimary
+    Tabs["Movement"].Indicator.Visible = true
 end
-buildMainPage()
+buildMovementPage()
 
 -- ============================================================
 -- MIN / CLOSE / KEYBIND
@@ -1426,7 +1307,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ============================================================
--- SPEED HACK LOOP (IMPROVED - 3 METHODS)
+-- SPEED HACK LOOP
 -- ============================================================
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
@@ -1462,19 +1343,19 @@ RunService.RenderStepped:Connect(function()
             speed = target + jitter
         end
 
-        -- METHOD 1: WalkSpeed
         pcall(function() hum.WalkSpeed = speed end)
-        -- Also override MoveDirection-based movement
-        pcall(function()
-            if hum.MoveDirection.Magnitude > 0.1 then
-                local dir = hum.MoveDirection
-                hrp.Velocity = Vector3.new(dir.X * speed, hrp.Velocity.Y, dir.Z * speed)
-            else
-                hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
-            end
-        end)
 
-        -- METHOD 2: BodyVelocity (custom controller games)
+        if hum.MoveDirection.Magnitude > 0.1 then
+            local dir = hum.MoveDirection
+            pcall(function()
+                hrp.Velocity = Vector3.new(dir.X * speed, hrp.Velocity.Y, dir.Z * speed)
+            end)
+        else
+            pcall(function()
+                hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
+            end)
+        end
+
         local bv = hrp:FindFirstChild("SpeedBV")
         if not bv then
             bv = Instance.new("BodyVelocity")
@@ -1585,8 +1466,8 @@ local function startFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0, 1, 0) end
-        local speed = 60
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = 120 end
+        local speed = State.FlySpeed or 60
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2 end
         bv.Velocity = dir * speed
         bg.CFrame = cam.CFrame
     end)
@@ -1631,59 +1512,6 @@ LocalPlayer.Idled:Connect(function()
 end)
 
 -- ============================================================
--- AUTO STEAL LOOP (instant fire)
--- ============================================================
-task.spawn(function()
-    while task.wait(0.15) do
-        if State.AutoSteal then
-            local nearest = findNearestStealPrompt()
-            if nearest then
-                local char = LocalPlayer.Character
-                if char then
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        pcall(function()
-                            hrp.CFrame = CFrame.new(nearest.part.Position + Vector3.new(0, 3, 0))
-                        end)
-                        instantFirePrompt(nearest.prompt)
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- ============================================================
--- NO COOLDOWN STEAL LOOP
--- ============================================================
-task.spawn(function()
-    while task.wait(0.08) do
-        if State.NoCooldownSteal then
-            refreshStealCache()
-            for _, prompt in ipairs(stealPromptCache) do
-                if prompt.Parent then
-                    pcall(function()
-                        if prompt:IsA("ProximityPrompt") then
-                            prompt.HoldDuration = 0
-                            prompt.MaxActivationDistance = 9999
-                            prompt.RequiresLineOfSight = false
-                            if fireproximityprompt then
-                                fireproximityprompt(prompt)
-                            end
-                        elseif prompt:IsA("ClickDetector") then
-                            prompt.MaxActivationDistance = 9999
-                            if fireclickdetector then
-                                fireclickdetector(prompt)
-                            end
-                        end
-                    end)
-                end
-            end
-        end
-    end
-end)
-
--- ============================================================
 -- RESPAWN
 -- ============================================================
 LocalPlayer.CharacterAdded:Connect(function()
@@ -1703,6 +1531,13 @@ notify(Config.Title .. " " .. Config.Version .. " loaded", false)
 
 print("[EXECUTE HUB] " .. Config.Version .. " loaded")
 print("[EXECUTE HUB] User: " .. LocalPlayer.Name)
-print("[EXECUTE HUB] Tabs: Main, Save/TP, Settings")
+print("[EXECUTE HUB] Place: " .. game.PlaceId)
+print("[EXECUTE HUB] Tabs: Movement, Save/TP, Anti-Ban, Settings")
 print("[EXECUTE HUB] Right Ctrl = toggle UI")
 print("[EXECUTE HUB] Coordinate HUD: ON (draggable)")
+
+-- Check for updates on startup
+task.spawn(function()
+    task.wait(3)
+    checkForUpdates()
+end)
