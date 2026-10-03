@@ -1,90 +1,56 @@
---[[
-================================================================
-    EXECUTE HUB - v9.0.0 CASCADE UI EDITION
-    UI: Cascade (macOS style, dark/red theme)
-    Features: Bypass Gates, Speed, Fly, Noclip, Save/TP, Anti-Ban
-    Loading screen + Coordinate HUD
-    Tương thích: Delta, Arceus X, Fluxus, Krnl, Synapse
-================================================================
-]]
+-- ============================================================
+-- EXECUTE HUB - v9.1.0 (CASCADE-STYLE UI INLINE)
+-- Không cần load library - UI tự tạo
+-- ============================================================
 
--- ============================================================
--- SERVICES
--- ============================================================
-local Players            = game:GetService("Players")
-local RunService         = game:GetService("RunService")
-local UserInputService   = game:GetService("UserInputService")
-local TweenService       = game:GetService("TweenService")
-local CoreGui            = game:GetService("CoreGui")
-local VirtualUser        = game:GetService("VirtualUser")
-local Workspace          = game:GetService("Workspace")
-local TeleportService    = game:GetService("TeleportService")
-local LocalPlayer        = Players.LocalPlayer
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+local CoreGui          = game:GetService("CoreGui")
+local VirtualUser      = game:GetService("VirtualUser")
+local Workspace        = game:GetService("Workspace")
+local TeleportService  = game:GetService("TeleportService")
+local LocalPlayer      = Players.LocalPlayer
 
--- ============================================================
--- CONFIG
--- ============================================================
 local Config = {
-    Version        = "9.0.0-Cascade",
-    UpdateURL      = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/version.txt",
-    ScriptURL      = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/main.lua",
-    CurrentVersion = "9.0.0"
+    BgMain      = Color3.fromRGB(15, 15, 18),
+    BgSidebar   = Color3.fromRGB(10, 10, 12),
+    BgContent   = Color3.fromRGB(8, 8, 10),
+    BgCard      = Color3.fromRGB(28, 28, 34),
+    BgHover     = Color3.fromRGB(45, 45, 55),
+    Accent      = Color3.fromRGB(255, 35, 45),
+    AccentHover = Color3.fromRGB(255, 60, 70),
+    TextPrimary = Color3.fromRGB(245, 245, 250),
+    TextSecond  = Color3.fromRGB(160, 160, 175),
+    TextMuted   = Color3.fromRGB(110, 110, 125),
+    Border      = Color3.fromRGB(255, 255, 255),
+    BorderTransp= 0.9,
+    Success     = Color3.fromRGB(60, 220, 110),
+    Version     = "v9.1.0"
 }
 
--- ============================================================
--- STATE
--- ============================================================
 local State = {
-    -- Bypass
-    BypassEnabled    = false,
-    BypassRange      = 500,
-    RemoveCollision  = false,
-    AutoEnterLocked  = false,
-    -- Movement
-    SpeedEnabled     = false,
-    SpeedValue       = 16,
-    MaxSpeed         = 250,
-    FlyEnabled       = false,
-    FlySpeed         = 60,
-    NoclipEnabled    = false,
-    InfJumpEnabled   = false,
-    AntiFlingEnabled = false,
-    AntiVoidEnabled  = false,
-    -- Anti-Ban
-    AntiBanEnabled   = true,
-    JitterEnabled    = true,
-    RateLimitEnabled = true,
-    LegitMode        = false,
-    RampUpEnabled    = true,
-    -- Utils
-    ShowCoords       = true,
-    AntiAfkEnabled   = true,
-    AutoUpdateCheck  = true,
-    SavedPositions   = {},
+    BypassEnabled=false, BypassRange=500, RemoveCollision=false, AutoEnterLocked=false,
+    SpeedEnabled=false, SpeedValue=16, MaxSpeed=250,
+    FlyEnabled=false, FlySpeed=60,
+    NoclipEnabled=false, InfJumpEnabled=false, AntiFlingEnabled=false, AntiVoidEnabled=false,
+    AntiBanEnabled=true, JitterEnabled=true, RateLimitEnabled=true, LegitMode=false, RampUpEnabled=true,
+    ShowCoords=true, AntiAfkEnabled=true, AutoUpdateCheck=true, SavedPositions={},
 }
 
 local AntiBan = { tickCounter = 0, currentRampSpeed = 16 }
 
--- ============================================================
--- CLEANUP PREVIOUS
--- ============================================================
+-- CLEANUP
 pcall(function()
-    if CoreGui:FindFirstChild("Cascade") then CoreGui.Cascade:Destroy() end
-    if CoreGui:FindFirstChild("ExecuteHubLoading") then CoreGui.ExecuteHubLoading:Destroy() end
-    if CoreGui:FindFirstChild("ExecuteHubHUD") then CoreGui.ExecuteHubHUD:Destroy() end
+    if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
 end)
 pcall(function()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then
-        if pg:FindFirstChild("Cascade") then pg.Cascade:Destroy() end
-        if pg:FindFirstChild("ExecuteHubLoading") then pg.ExecuteHubLoading:Destroy() end
-        if pg:FindFirstChild("ExecuteHubHUD") then pg.ExecuteHubHUD:Destroy() end
-    end
+    if pg and pg:FindFirstChild("ExecuteHub") then pg.ExecuteHub:Destroy() end
 end)
 
--- ============================================================
 -- LOADING SCREEN
--- ============================================================
 local LoadingGui = Instance.new("ScreenGui")
 LoadingGui.Name = "ExecuteHubLoading"
 LoadingGui.ResetOnSpawn = false
@@ -93,238 +59,350 @@ LoadingGui.DisplayOrder = 1000
 pcall(function() LoadingGui.Parent = CoreGui end)
 if not LoadingGui.Parent then LoadingGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
-local LoadFrame = Instance.new("Frame")
-LoadFrame.Size = UDim2.new(0, 340, 0, 180)
-LoadFrame.Position = UDim2.new(0.5, -170, 0.5, -90)
-LoadFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
-LoadFrame.BorderSizePixel = 0
-LoadFrame.Parent = LoadingGui
-local LFC = Instance.new("UICorner") LFC.CornerRadius = UDim.new(0, 14) LFC.Parent = LoadFrame
-local LFS = Instance.new("UIStroke") LFS.Color = Color3.fromRGB(255, 35, 45) LFS.Thickness = 1.5 LFS.Parent = LoadFrame
+local LF = Instance.new("Frame")
+LF.Size = UDim2.new(0, 340, 0, 180)
+LF.Position = UDim2.new(0.5, -170, 0.5, -90)
+LF.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+LF.BorderSizePixel = 0
+LF.Parent = LoadingGui
+local LFC = Instance.new("UICorner") LFC.CornerRadius = UDim.new(0, 14) LFC.Parent = LF
+local LFS = Instance.new("UIStroke") LFS.Color = Config.Accent LFS.Thickness = 1.5 LFS.Parent = LF
 
-local LoadLogo = Instance.new("TextLabel")
-LoadLogo.Size = UDim2.new(1, 0, 0, 40)
-LoadLogo.Position = UDim2.new(0, 0, 0, 20)
-LoadLogo.BackgroundTransparency = 1
-LoadLogo.Text = "EXECUTE HUB"
-LoadLogo.TextColor3 = Color3.fromRGB(255, 35, 45)
-LoadLogo.TextSize = 24
-LoadLogo.Font = Enum.Font.GothamBlack
-LoadLogo.Parent = LoadFrame
+local LL = Instance.new("TextLabel")
+LL.Size = UDim2.new(1, 0, 0, 40); LL.Position = UDim2.new(0, 0, 0, 20)
+LL.BackgroundTransparency = 1; LL.Text = "EXECUTE HUB"
+LL.TextColor3 = Config.Accent; LL.TextSize = 24; LL.Font = Enum.Font.GothamBlack; LL.Parent = LF
 
-local LoadVer = Instance.new("TextLabel")
-LoadVer.Size = UDim2.new(1, 0, 0, 14)
-LoadVer.Position = UDim2.new(0, 0, 0, 58)
-LoadVer.BackgroundTransparency = 1
-LoadVer.Text = Config.Version
-LoadVer.TextColor3 = Color3.fromRGB(110, 110, 125)
-LoadVer.TextSize = 10
-LoadVer.Font = Enum.Font.Gotham
-LoadVer.Parent = LoadFrame
+local LV = Instance.new("TextLabel")
+LV.Size = UDim2.new(1, 0, 0, 14); LV.Position = UDim2.new(0, 0, 0, 58)
+LV.BackgroundTransparency = 1; LV.Text = Config.Version
+LV.TextColor3 = Color3.fromRGB(110, 110, 125); LV.TextSize = 10; LV.Font = Enum.Font.Gotham; LV.Parent = LF
 
-local LoadBarBg = Instance.new("Frame")
-LoadBarBg.Size = UDim2.new(0, 260, 0, 6)
-LoadBarBg.Position = UDim2.new(0.5, -130, 0, 100)
-LoadBarBg.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-LoadBarBg.BorderSizePixel = 0
-LoadBarBg.Parent = LoadFrame
-local LBBC = Instance.new("UICorner") LBBC.CornerRadius = UDim.new(1, 0) LBBC.Parent = LoadBarBg
+local LBB = Instance.new("Frame")
+LBB.Size = UDim2.new(0, 260, 0, 6); LBB.Position = UDim2.new(0.5, -130, 0, 100)
+LBB.BackgroundColor3 = Color3.fromRGB(45, 45, 55); LBB.BorderSizePixel = 0; LBB.Parent = LF
+local LBBC = Instance.new("UICorner") LBBC.CornerRadius = UDim.new(1, 0) LBBC.Parent = LBB
 
-local LoadBarFill = Instance.new("Frame")
-LoadBarFill.Size = UDim2.new(0, 0, 1, 0)
-LoadBarFill.BackgroundColor3 = Color3.fromRGB(255, 35, 45)
-LoadBarFill.BorderSizePixel = 0
-LoadBarFill.Parent = LoadBarBg
-local LBFC = Instance.new("UICorner") LBFC.CornerRadius = UDim.new(1, 0) LBFC.Parent = LoadBarFill
+local LBF = Instance.new("Frame")
+LBF.Size = UDim2.new(0, 0, 1, 0); LBF.BackgroundColor3 = Config.Accent
+LBF.BorderSizePixel = 0; LBF.Parent = LBB
+local LBFC = Instance.new("UICorner") LBFC.CornerRadius = UDim.new(1, 0) LBFC.Parent = LBF
 
-local LoadStatus = Instance.new("TextLabel")
-LoadStatus.Size = UDim2.new(1, 0, 0, 14)
-LoadStatus.Position = UDim2.new(0, 0, 0, 120)
-LoadStatus.BackgroundTransparency = 1
-LoadStatus.Text = "Loading Cascade UI..."
-LoadStatus.TextColor3 = Color3.fromRGB(160, 160, 175)
-LoadStatus.TextSize = 10
-LoadStatus.Font = Enum.Font.GothamBold
-LoadStatus.Parent = LoadFrame
+local LS = Instance.new("TextLabel")
+LS.Size = UDim2.new(1, 0, 0, 14); LS.Position = UDim2.new(0, 0, 0, 120)
+LS.BackgroundTransparency = 1; LS.Text = "Loading..."
+LS.TextColor3 = Color3.fromRGB(160, 160, 175); LS.TextSize = 10; LS.Font = Enum.Font.GothamBold; LS.Parent = LF
 
-local loadingSteps = { "Loading Cascade UI...", "Checking updates...", "Setting up modules...", "Initializing bypass...", "Ready!" }
 task.spawn(function()
-    for i = 1, 5 do
-        LoadStatus.Text = loadingSteps[i]
-        TweenService:Create(LoadBarFill, TweenInfo.new(0.35), { Size = UDim2.new(i/5, 0, 1, 0) }):Play()
+    local steps = {"Loading modules...", "Checking updates...", "Setting up UI...", "Ready!"}
+    for i = 1, 4 do
+        LS.Text = steps[i]
+        TweenService:Create(LBF, TweenInfo.new(0.3), { Size = UDim2.new(i/4, 0, 1, 0) }):Play()
         task.wait(0.4)
     end
     task.wait(0.3)
-    for _, obj in ipairs(LoadFrame:GetDescendants()) do
-        if obj:IsA("TextLabel") then
-            TweenService:Create(obj, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
-        elseif obj:IsA("Frame") then
-            TweenService:Create(obj, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
-        elseif obj:IsA("UIStroke") then
-            TweenService:Create(obj, TweenInfo.new(0.4), { Transparency = 1 }):Play()
-        end
+    for _, obj in ipairs(LF:GetDescendants()) do
+        if obj:IsA("TextLabel") then TweenService:Create(obj, TweenInfo.new(0.4), {TextTransparency=1}):Play()
+        elseif obj:IsA("Frame") then TweenService:Create(obj, TweenInfo.new(0.4), {BackgroundTransparency=1}):Play()
+        elseif obj:IsA("UIStroke") then TweenService:Create(obj, TweenInfo.new(0.4), {Transparency=1}):Play() end
     end
-    task.wait(0.5)
-    LoadingGui:Destroy()
+    task.wait(0.5); LoadingGui:Destroy()
 end)
 
--- ============================================================
--- LOAD CASCADE LIBRARY
--- ============================================================
-local Cascade
-do
-    local source = game:HttpGet("https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/cascade.lua")
-    Cascade = loadstring(source)()
+task.wait(2.5)
+
+-- MAIN UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ExecuteHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.DisplayOrder = 999
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 600, 0, 400)
+Main.Position = UDim2.new(0.5, -300, 0.5, -200)
+Main.BackgroundColor3 = Config.BgMain
+Main.BackgroundTransparency = 0.05
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = ScreenGui
+local MC = Instance.new("UICorner") MC.CornerRadius = UDim.new(0, 14) MC.Parent = Main
+local MS = Instance.new("UIStroke") MS.Color = Config.Border MS.Thickness = 1 MS.Transparency = Config.BorderTransp MS.Parent = Main
+
+-- TOP BAR
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.BackgroundColor3 = Config.BgSidebar
+TopBar.BackgroundTransparency = 0.1
+TopBar.BorderSizePixel = 0
+TopBar.Parent = Main
+local TBC = Instance.new("UICorner") TBC.CornerRadius = UDim.new(0, 14) TBC.Parent = TopBar
+local TBCover = Instance.new("Frame")
+TBCover.Size = UDim2.new(1, 0, 0, 15); TBCover.Position = UDim2.new(0, 0, 1, -15)
+TBCover.BackgroundColor3 = Config.BgSidebar; TBCover.BackgroundTransparency = 0.1; TBCover.BorderSizePixel = 0; TBCover.Parent = TopBar
+
+local dots = Instance.new("Frame")
+dots.Size = UDim2.new(0, 50, 0, 12); dots.Position = UDim2.new(0, 12, 0.5, -6)
+dots.BackgroundTransparency = 1; dots.Parent = TopBar
+local dotColors = {Color3.fromRGB(255,95,87), Color3.fromRGB(255,189,46), Color3.fromRGB(39,201,63)}
+for i = 1, 3 do
+    local d = Instance.new("Frame")
+    d.Size = UDim2.new(0, 9, 0, 9); d.Position = UDim2.new(0, (i-1)*12, 0.5, -4.5)
+    d.BackgroundColor3 = dotColors[i]; d.BorderSizePixel = 0; d.Parent = dots
+    local dc = Instance.new("UICorner") dc.CornerRadius = UDim.new(1, 0) dc.Parent = d
 end
 
--- Fallback: nếu không load được, dùng Cascade inline (compact version)
-if not Cascade or not Cascade.New then
-    error("[EXECUTE HUB] Không load được Cascade. Kiểm tra HTTP executor và file cascade.lua trên GitHub.")
+local TTitle = Instance.new("TextLabel")
+TTitle.Size = UDim2.new(0, 300, 0, 18); TTitle.Position = UDim2.new(0, 66, 0, 6)
+TTitle.BackgroundTransparency = 1; TTitle.Text = "EXECUTE HUB"
+TTitle.TextColor3 = Config.TextPrimary; TTitle.TextSize = 13; TTitle.Font = Enum.Font.GothamBold
+TTitle.TextXAlignment = Enum.TextXAlignment.Left; TTitle.Parent = TopBar
+
+local TSub = Instance.new("TextLabel")
+TSub.Size = UDim2.new(0, 300, 0, 12); TSub.Position = UDim2.new(0, 66, 0, 22)
+TSub.BackgroundTransparency = 1; TSub.Text = "Cascade Style • " .. Config.Version
+TSub.TextColor3 = Config.TextMuted; TSub.TextSize = 9; TSub.Font = Enum.Font.Gotham
+TSub.TextXAlignment = Enum.TextXAlignment.Left; TSub.Parent = TopBar
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 22, 0, 22); CloseBtn.Position = UDim2.new(1, -30, 0.5, -11)
+CloseBtn.BackgroundColor3 = Config.Accent; CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Config.TextPrimary; CloseBtn.TextSize = 11; CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.BorderSizePixel = 0; CloseBtn.AutoButtonColor = false; CloseBtn.Parent = TopBar
+local CC = Instance.new("UICorner") CC.CornerRadius = UDim.new(0, 6) CC.Parent = CloseBtn
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 22, 0, 22); MinBtn.Position = UDim2.new(1, -54, 0.5, -11)
+MinBtn.BackgroundColor3 = Config.BgCard; MinBtn.BackgroundTransparency = 0.5
+MinBtn.Text = "−"; MinBtn.TextColor3 = Config.TextPrimary; MinBtn.TextSize = 14
+MinBtn.Font = Enum.Font.GothamBold; MinBtn.BorderSizePixel = 0
+MinBtn.AutoButtonColor = false; MinBtn.Parent = TopBar
+local MinC = Instance.new("UICorner") MinC.CornerRadius = UDim.new(0, 6) MinC.Parent = MinBtn
+
+-- SIDEBAR
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 150, 1, -48); Sidebar.Position = UDim2.new(0, 0, 0, 40)
+Sidebar.BackgroundColor3 = Config.BgSidebar
+Sidebar.BackgroundTransparency = 0.15
+Sidebar.BorderSizePixel = 0; Sidebar.Parent = Main
+local SBC = Instance.new("UICorner") SBC.CornerRadius = UDim.new(0, 12) SBC.Parent = Sidebar
+local SBDiv = Instance.new("Frame")
+SBDiv.Size = UDim2.new(0, 1, 1, 0); SBDiv.Position = UDim2.new(1, -1, 0, 0)
+SBDiv.BackgroundColor3 = Config.Border; SBDiv.BackgroundTransparency = 0.85
+SBDiv.BorderSizePixel = 0; SBDiv.Parent = Sidebar
+
+-- User block
+local UB = Instance.new("Frame")
+UB.Size = UDim2.new(1, -12, 0, 36); UB.Position = UDim2.new(0, 6, 0, 8)
+UB.BackgroundColor3 = Config.BgCard; UB.BackgroundTransparency = 0.6
+UB.BorderSizePixel = 0; UB.Parent = Sidebar
+local UBC = Instance.new("UICorner") UBC.CornerRadius = UDim.new(0, 6) UBC.Parent = UB
+
+local UAvatar = Instance.new("Frame")
+UAvatar.Size = UDim2.new(0, 24, 0, 24); UAvatar.Position = UDim2.new(0, 6, 0.5, -12)
+UAvatar.BackgroundColor3 = Config.Accent; UAvatar.BorderSizePixel = 0; UAvatar.Parent = UB
+local UAC = Instance.new("UICorner") UAC.CornerRadius = UDim.new(1, 0) UAC.Parent = UAvatar
+
+local UI2 = Instance.new("TextLabel")
+UI2.Size = UDim2.new(1, 0, 1, 0); UI2.BackgroundTransparency = 1
+UI2.Text = string.sub(LocalPlayer.Name, 1, 1):upper()
+UI2.TextColor3 = Config.TextPrimary; UI2.TextSize = 12; UI2.Font = Enum.Font.GothamBold; UI2.Parent = UAvatar
+
+local UN = Instance.new("TextLabel")
+UN.Size = UDim2.new(1, -38, 0, 12); UN.Position = UDim2.new(0, 36, 0, 6)
+UN.BackgroundTransparency = 1; UN.Text = LocalPlayer.Name
+UN.TextColor3 = Config.TextPrimary; UN.TextSize = 10; UN.Font = Enum.Font.GothamBold
+UN.TextXAlignment = Enum.TextXAlignment.Left; UN.TextTruncate = Enum.TextTruncate.AtEnd; UN.Parent = UB
+
+local US = Instance.new("TextLabel")
+US.Size = UDim2.new(1, -38, 0, 10); US.Position = UDim2.new(0, 36, 0, 20)
+US.BackgroundTransparency = 1; US.Text = "● Online"
+US.TextColor3 = Config.Success; US.TextSize = 8; US.Font = Enum.Font.GothamMedium
+US.TextXAlignment = Enum.TextXAlignment.Left; US.Parent = UB
+
+-- CONTENT
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -158, 1, -48); Content.Position = UDim2.new(0, 158, 0, 40)
+Content.BackgroundColor3 = Config.BgContent; Content.BorderSizePixel = 0; Content.Parent = Main
+local CC2 = Instance.new("UICorner") CC2.CornerRadius = UDim.new(0, 12) CC2.Parent = Content
+
+local PageTitle = Instance.new("TextLabel")
+PageTitle.Size = UDim2.new(1, -16, 0, 22); PageTitle.Position = UDim2.new(0, 8, 0, 2)
+PageTitle.BackgroundTransparency = 1; PageTitle.Text = "BYPASS"
+PageTitle.TextColor3 = Config.TextPrimary; PageTitle.TextSize = 14; PageTitle.Font = Enum.Font.GothamBlack
+PageTitle.TextXAlignment = Enum.TextXAlignment.Left; PageTitle.Parent = Content
+
+local PageLine = Instance.new("Frame")
+PageLine.Size = UDim2.new(1, -16, 0, 1); PageLine.Position = UDim2.new(0, 8, 0, 26)
+PageLine.BackgroundColor3 = Config.Accent; PageLine.BorderSizePixel = 0; PageLine.Parent = Content
+
+local PageHolder = Instance.new("Frame")
+PageHolder.Size = UDim2.new(1, -16, 1, -34); PageHolder.Position = UDim2.new(0, 8, 0, 32)
+PageHolder.BackgroundTransparency = 1; PageHolder.Parent = Content
+
+local Page = Instance.new("ScrollingFrame")
+Page.Size = UDim2.new(1, 0, 1, 0); Page.BackgroundTransparency = 1; Page.BorderSizePixel = 0
+Page.ScrollBarThickness = 3; Page.ScrollBarImageColor3 = Config.Accent
+Page.ScrollBarImageTransparency = 0.5
+Page.CanvasSize = UDim2.new(0, 0, 0, 0); Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Page.Parent = PageHolder
+local PL = Instance.new("UIListLayout") PL.Padding = UDim.new(0, 5) PL.SortOrder = Enum.SortOrder.LayoutOrder PL.Parent = Page
+local PP = Instance.new("UIPadding") PP.PaddingTop = UDim.new(0, 4) PP.PaddingBottom = UDim.new(0, 4) PP.Parent = Page
+
+-- WIDGET BUILDERS
+local function createSection(parent, text)
+    local Sec = Instance.new("Frame")
+    Sec.Size = UDim2.new(1, 0, 0, 20); Sec.BackgroundTransparency = 1; Sec.Parent = parent
+    local Icon = Instance.new("TextLabel")
+    Icon.Size = UDim2.new(0, 14, 0, 14); Icon.Position = UDim2.new(0, 2, 0.5, -7)
+    Icon.BackgroundTransparency = 1; Icon.Text = "✦"
+    Icon.TextColor3 = Config.Accent; Icon.TextSize = 10; Icon.Font = Enum.Font.GothamBold; Icon.Parent = Sec
+    local L = Instance.new("TextLabel")
+    L.Size = UDim2.new(1, -22, 1, 0); L.Position = UDim2.new(0, 20, 0, 0)
+    L.BackgroundTransparency = 1; L.Text = text
+    L.TextColor3 = Config.TextSecond; L.TextSize = 10; L.Font = Enum.Font.GothamBold
+    L.TextXAlignment = Enum.TextXAlignment.Left; L.Parent = Sec
 end
 
--- ============================================================
--- DARK/RED THEME OVERRIDE
--- ============================================================
-local DarkRedTheme = {
-    Text = {
-        Primary         = { Cascade.Themes.Dark.Text.Primary[1], 0.15 },
-        Secondary       = { Cascade.Themes.Dark.Text.Secondary[1], 0.45 },
-        Tertiary        = { Cascade.Themes.Dark.Text.Tertiary[1], 0.75 },
-        PrimaryAccent   = { Color3.fromRGB(255, 35, 45), 0.62 },
-        SelectionPrimary= { Color3.fromRGB(255, 255, 255), 0 },
-    },
-    Controls = {
-        Background      = { Color3.fromRGB(12, 12, 14), 0 },
-        View            = { Color3.fromRGB(20, 20, 24), 0 },
-        ViewBorder      = { Color3.fromRGB(255, 255, 255), 0.92 },
-        Sidebar         = { Color3.fromRGB(8, 8, 10), 0.15 },
-        Separator       = {
-            Background  = { Color3.fromRGB(0, 0, 0), 0.5 },
-            Shadow      = { Color3.fromRGB(255, 255, 255), 0.9 },
-        },
-        Titlebar        = { Color3.fromRGB(22, 22, 26), 0 },
-        TitlebarShadow  = {
-            Background  = { Color3.fromRGB(0, 0, 0), 0.5 },
-            Color       = { Color3.fromRGB(0, 0, 0) },
-            Transparency= { 0.5 },
-        },
-        Selection       = { Color3.fromRGB(255, 35, 45), 0 },
-        SelectionFocused= { Color3.fromRGB(255, 35, 45), 0 },
-        SelectionFocusedAccent = { Color3.fromRGB(255, 255, 255), 0.1 },
-        SelectionStroke = { Color3.fromRGB(255, 35, 45), 0.4 },
-        Exit            = { Color3.fromRGB(255, 95, 87), 0 },
-        Minimize        = { Color3.fromRGB(255, 189, 46), 0 },
-        Zoom            = { Color3.fromRGB(39, 201, 63), 0 },
-        WindowControlIcon = { Color3.fromRGB(0, 0, 0), 0.5 },
-        WindowControlStroke = { Color3.fromRGB(255, 255, 255), 0.85 },
-        Toggle          = {
-            Knob        = { Color3.fromRGB(255, 255, 255), 0 },
-            KnobEffects = { Color3.fromRGB(255, 255, 255), 0 },
-            SwitchOff   = { Color3.fromRGB(70, 70, 85), 0.6 },
-            SwitchOn    = { Color3.fromRGB(255, 35, 45), 0 },
-            DepthEffect = { Color3.fromRGB(120, 15, 20) },
-        },
-        Slider          = {
-            Track       = { Color3.fromRGB(45, 45, 55), 0 },
-            TrackEffects= { Color3.fromRGB(0, 0, 0), 0.9 },
-            TrackFill   = { Color3.fromRGB(255, 35, 45), 0 },
-            Thumb       = { Color3.fromRGB(255, 255, 255), 0 },
-            ThumbStroke = { Color3.fromRGB(0, 0, 0), 0.8 },
-            ThumbEffects= { Color3.fromRGB(255, 255, 255), 0 },
-        },
-        Button          = {
-            Shadow      = { Color3.fromRGB(0, 0, 0) },
-            FillPrimary = { Color3.fromRGB(255, 35, 45) },
-            FillSecondary = { Color3.fromRGB(40, 40, 50) },
-        },
-        Stepper         = {
-            Background  = { Color3.fromRGB(35, 35, 45), 0 },
-            Dropshadow  = { Color3.fromRGB(0, 0, 0), 0 },
-            Separator   = { Color3.fromRGB(255, 255, 255), 0.9 },
-            Filler      = { Color3.fromRGB(255, 255, 255), 0.96 },
-            SegmentShadow = { Color3.fromRGB(0, 0, 0) },
-        },
-        RadioButtonGroup = {
-            Background  = { Color3.fromRGB(35, 35, 45), 0 },
-            Dot         = { Color3.fromRGB(255, 255, 255), 0 },
-            Stroke      = { Color3.fromRGB(0, 0, 0), 0.8 },
-            Overlay     = { Color3.fromRGB(255, 255, 255), 0.92 },
-            InnerShadow = { Color3.fromRGB(255, 255, 255), 0.9 },
-        },
-        MenuButton      = {
-            IndicatorBackground = { Color3.fromRGB(255, 255, 255), 0.9 },
-            MenuBackground      = { Color3.fromRGB(35, 35, 42), 0.05 },
-        },
-    },
-    Accents = {
-        Red = { Color3.fromRGB(255, 35, 45), 0 },
-    }
-}
+local function createToggle(parent, text, default, callback)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, 0, 0, 32); Card.BackgroundColor3 = Config.BgCard
+    Card.BackgroundTransparency = 0.4; Card.BorderSizePixel = 0; Card.Parent = parent
+    local C = Instance.new("UICorner") C.CornerRadius = UDim.new(0, 6) C.Parent = Card
+    local CS = Instance.new("UIStroke") CS.Color = Config.Border CS.Thickness = 1 CS.Transparency = 0.92 CS.Parent = Card
+    local L = Instance.new("TextLabel")
+    L.Size = UDim2.new(1, -55, 1, 0); L.Position = UDim2.new(0, 10, 0, 0)
+    L.BackgroundTransparency = 1; L.Text = text
+    L.TextColor3 = Config.TextPrimary; L.TextSize = 10; L.Font = Enum.Font.Gotham
+    L.TextXAlignment = Enum.TextXAlignment.Left; L.Parent = Card
+    local TB = Instance.new("Frame")
+    TB.Size = UDim2.new(0, 30, 0, 16); TB.Position = UDim2.new(1, -40, 0.5, -8)
+    TB.BackgroundColor3 = default and Config.Accent or Color3.fromRGB(60,60,72)
+    TB.BorderSizePixel = 0; TB.Parent = Card
+    local TBC2 = Instance.new("UICorner") TBC2.CornerRadius = UDim.new(1, 0) TBC2.Parent = TB
+    local TBtn = Instance.new("TextButton")
+    TBtn.Size = UDim2.new(1, 0, 1, 0); TBtn.BackgroundTransparency = 1; TBtn.Text = ""; TBtn.Parent = TB
+    local K = Instance.new("Frame")
+    K.Size = UDim2.new(0, 12, 0, 12)
+    K.Position = default and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+    K.BackgroundColor3 = Color3.fromRGB(255,255,255); K.BorderSizePixel = 0; K.Parent = TB
+    local KC = Instance.new("UICorner") KC.CornerRadius = UDim.new(1, 0) KC.Parent = K
+    local isOn = default
+    TBtn.MouseButton1Click:Connect(function()
+        isOn = not isOn
+        TweenService:Create(TB, TweenInfo.new(0.15), { BackgroundColor3 = isOn and Config.Accent or Color3.fromRGB(60,60,72) }):Play()
+        TweenService:Create(K, TweenInfo.new(0.15), { Position = isOn and UDim2.new(1,-14,0.5,-6) or UDim2.new(0,2,0.5,-6) }):Play()
+        if callback then callback(isOn) end
+    end)
+end
 
--- ============================================================
--- INITIALIZE CASCADE
--- ============================================================
-local App = Cascade.New({
-    WindowPill = true,
-    Theme = DarkRedTheme,
-})
+local function createSlider(parent, text, min, max, default, suffix, callback)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, 0, 0, 44); Card.BackgroundColor3 = Config.BgCard
+    Card.BackgroundTransparency = 0.4; Card.BorderSizePixel = 0; Card.Parent = parent
+    local C = Instance.new("UICorner") C.CornerRadius = UDim.new(0, 6) C.Parent = Card
+    local CS = Instance.new("UIStroke") CS.Color = Config.Border CS.Thickness = 1 CS.Transparency = 0.92 CS.Parent = Card
+    local L = Instance.new("TextLabel")
+    L.Size = UDim2.new(1, -80, 0, 12); L.Position = UDim2.new(0, 10, 0, 6)
+    L.BackgroundTransparency = 1; L.Text = text
+    L.TextColor3 = Config.TextPrimary; L.TextSize = 10; L.Font = Enum.Font.Gotham
+    L.TextXAlignment = Enum.TextXAlignment.Left; L.Parent = Card
+    local VL = Instance.new("TextLabel")
+    VL.Size = UDim2.new(0, 70, 0, 12); VL.Position = UDim2.new(1, -80, 0, 6)
+    VL.BackgroundTransparency = 1; VL.Text = tostring(default) .. " " .. (suffix or "")
+    VL.TextColor3 = Config.TextSecond; VL.TextSize = 10; VL.Font = Enum.Font.GothamBold
+    VL.TextXAlignment = Enum.TextXAlignment.Right; VL.Parent = Card
+    local Bar = Instance.new("Frame")
+    Bar.Size = UDim2.new(1, -20, 0, 3); Bar.Position = UDim2.new(0, 10, 0, 30)
+    Bar.BackgroundColor3 = Color3.fromRGB(60,60,72); Bar.BorderSizePixel = 0; Bar.Parent = Card
+    local BC = Instance.new("UICorner") BC.CornerRadius = UDim.new(1, 0) BC.Parent = Bar
+    local Fill = Instance.new("Frame")
+    Fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0)
+    Fill.BackgroundColor3 = Config.Accent; Fill.BorderSizePixel = 0; Fill.Parent = Bar
+    local FC = Instance.new("UICorner") FC.CornerRadius = UDim.new(1, 0) FC.Parent = Fill
+    local Dot = Instance.new("Frame")
+    Dot.Size = UDim2.new(0, 11, 0, 11)
+    Dot.Position = UDim2.new((default-min)/(max-min), -5.5, 0.5, -5.5)
+    Dot.BackgroundColor3 = Color3.fromRGB(255,255,255); Dot.BorderSizePixel = 0; Dot.Parent = Bar
+    local DC = Instance.new("UICorner") DC.CornerRadius = UDim.new(1, 0) DC.Parent = Dot
+    local dragging = false
+    local function update(input)
+        local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
+        local v = math.floor(min + (max - min) * pos)
+        Fill.Size = UDim2.new(pos, 0, 1, 0)
+        Dot.Position = UDim2.new(pos, -5.5, 0.5, -5.5)
+        VL.Text = tostring(v) .. " " .. (suffix or "")
+        if callback then callback(v) end
+    end
+    Dot.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then update(input) end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+    Bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            update(input); dragging = true
+        end
+    end)
+end
 
--- ============================================================
--- WINDOW
--- ============================================================
-local Window = App:Window({
-    Title = "EXECUTE HUB",
-    Subtitle = "Cascade Edition • " .. Config.Version,
-    Size = UDim2.fromOffset(560, 400),
-    MaxSize = UDim2.fromOffset(1200, 800),
-    MinSize = UDim2.fromOffset(400, 300),
-    Maximized = false,
-    Minimized = false,
-    Searching = true,
-    Resizable = true,
-    Draggable = true,
-    Dropshadow = true,
-    UIBlur = true,
-})
+local function createButton(parent, text, callback, isAccent)
+    local B = Instance.new("TextButton")
+    B.Size = UDim2.new(1, 0, 0, 30)
+    B.BackgroundColor3 = isAccent and Config.Accent or Config.BgCard
+    B.BackgroundTransparency = isAccent and 0 or 0.4
+    B.Text = text; B.TextColor3 = Config.TextPrimary; B.TextSize = 10
+    B.Font = Enum.Font.GothamBold; B.BorderSizePixel = 0; B.AutoButtonColor = false; B.Parent = parent
+    local BC = Instance.new("UICorner") BC.CornerRadius = UDim.new(0, 6) BC.Parent = B
+    local BS = Instance.new("UIStroke") BS.Color = isAccent and Config.Accent or Config.Border
+    BS.Thickness = 1; BS.Transparency = isAccent and 0.4 or 0.92; BS.Parent = B
+    B.MouseEnter:Connect(function()
+        TweenService:Create(B, TweenInfo.new(0.15), { BackgroundColor3 = isAccent and Config.AccentHover or Config.BgHover, BackgroundTransparency = isAccent and 0 or 0.2 }):Play()
+    end)
+    B.MouseLeave:Connect(function()
+        TweenService:Create(B, TweenInfo.new(0.15), { BackgroundColor3 = isAccent and Config.Accent or Config.BgCard, BackgroundTransparency = isAccent and 0 or 0.4 }):Play()
+    end)
+    B.MouseButton1Click:Connect(function() if callback then callback() end end)
+end
 
--- ============================================================
--- TABS
--- ============================================================
-local BypassTab = Window:Tab({ Title = "Bypass", Icon = Cascade.Symbols["lockOpen"] })
-local MovementTab = Window:Tab({ Title = "Movement", Icon = Cascade.Symbols["figureRun"] })
-local SaveTPTab = Window:Tab({ Title = "Save / TP", Icon = Cascade.Symbols["mappin"] })
-local AntiBanTab = Window:Tab({ Title = "Anti-Ban", Icon = Cascade.Symbols["shield"] })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = Cascade.Symbols["gearShape"] })
+local function createTextInput(parent, text, placeholder, default, callback)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, 0, 0, 42); Card.BackgroundColor3 = Config.BgCard
+    Card.BackgroundTransparency = 0.4; Card.BorderSizePixel = 0; Card.Parent = parent
+    local C = Instance.new("UICorner") C.CornerRadius = UDim.new(0, 6) C.Parent = Card
+    local CS = Instance.new("UIStroke") CS.Color = Config.Border CS.Thickness = 1 CS.Transparency = 0.92 CS.Parent = Card
+    local L = Instance.new("TextLabel")
+    L.Size = UDim2.new(1, -20, 0, 12); L.Position = UDim2.new(0, 10, 0, 4)
+    L.BackgroundTransparency = 1; L.Text = text
+    L.TextColor3 = Config.TextPrimary; L.TextSize = 10; L.Font = Enum.Font.Gotham
+    L.TextXAlignment = Enum.TextXAlignment.Left; L.Parent = Card
+    local Box = Instance.new("TextBox")
+    Box.Size = UDim2.new(1, -20, 0, 20); Box.Position = UDim2.new(0, 10, 0, 18)
+    Box.BackgroundColor3 = Color3.fromRGB(22,22,28); Box.BorderSizePixel = 0
+    Box.Text = default or ""; Box.PlaceholderText = placeholder or ""
+    Box.TextColor3 = Config.TextPrimary; Box.PlaceholderColor3 = Config.TextMuted
+    Box.TextSize = 10; Box.Font = Enum.Font.GothamBold
+    Box.TextXAlignment = Enum.TextXAlignment.Left; Box.ClearTextOnFocus = false; Box.Parent = Card
+    local BC = Instance.new("UICorner") BC.CornerRadius = UDim.new(0, 4) BC.Parent = Box
+    local BP = Instance.new("UIPadding") BP.PaddingLeft = UDim.new(0, 6) BP.Parent = Box
+    Box.FocusLost:Connect(function() if callback then callback(Box.Text) end end)
+end
 
--- ============================================================
--- HELPER FUNCTIONS
--- ============================================================
-local function cleanupSpeedInstances()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    for _, n in ipairs({"SpeedBV", "FlyBV", "FlyBG", "AntiFlingBV"}) do
-        local o = hrp:FindFirstChild(n)
-        if o then pcall(function() o:Destroy() end) end
+local function clearPage()
+    for _, c in ipairs(Page:GetChildren()) do
+        if not c:IsA("UIListLayout") and not c:IsA("UIPadding") then c:Destroy() end
     end
 end
 
-local function resetCharacterPhysics()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        pcall(function() hum.WalkSpeed = 16 end)
-        pcall(function() hum.JumpPower = 50 end)
-        pcall(function() hum.PlatformStand = false end)
-    end
-    cleanupSpeedInstances()
-end
-
--- ============================================================
 -- BYPASS FUNCTIONS
--- ============================================================
 local bypassedGates = {}
 local bypassedCollisions = {}
 
@@ -337,11 +415,8 @@ local function bypassAllGates()
             for _, k in ipairs(kw) do
                 if string.find(n, k) then
                     pcall(function()
-                        obj.CanCollide = false
-                        obj.CanTouch = false
-                        obj.CanQuery = false
-                        obj.Transparency = 1
-                        obj.Massless = true
+                        obj.CanCollide = false; obj.CanTouch = false; obj.CanQuery = false
+                        obj.Transparency = 1; obj.Massless = true
                         if not bypassedGates[obj] then bypassedGates[obj] = true; count = count + 1 end
                     end)
                     break
@@ -354,16 +429,12 @@ local function bypassAllGates()
                     for _, p in ipairs(obj:GetDescendants()) do
                         if p:IsA("BasePart") then
                             pcall(function()
-                                p.CanCollide = false
-                                p.CanTouch = false
-                                p.CanQuery = false
-                                p.Transparency = 1
-                                p.Massless = true
+                                p.CanCollide = false; p.CanTouch = false; p.CanQuery = false
+                                p.Transparency = 1; p.Massless = true
                             end)
                         end
                     end
-                    count = count + 1
-                    break
+                    count = count + 1; break
                 end
             end
         end
@@ -379,8 +450,7 @@ local function disableGateChecks()
             if string.find(n, "barrier") or string.find(n, "gate") or string.find(n, "door") or string.find(n, "block") then
                 for _, s in ipairs(obj:GetDescendants()) do
                     if s:IsA("Script") or s:IsA("LocalScript") then
-                        pcall(function() s.Disabled = true end)
-                        c = c + 1
+                        pcall(function() s.Disabled = true end); c = c + 1
                     end
                 end
             end
@@ -394,10 +464,8 @@ local function bypassAllPrompts()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("ProximityPrompt") then
             pcall(function()
-                obj.HoldDuration = 0
-                obj.MaxActivationDistance = 9999
-                obj.RequiresLineOfSight = false
-                obj.Enabled = true
+                obj.HoldDuration = 0; obj.MaxActivationDistance = 9999
+                obj.RequiresLineOfSight = false; obj.Enabled = true
             end)
             c = c + 1
         end
@@ -410,8 +478,7 @@ local function activateAllPrompts()
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("ProximityPrompt") then
             pcall(function()
-                obj.HoldDuration = 0
-                obj.MaxActivationDistance = 9999
+                obj.HoldDuration = 0; obj.MaxActivationDistance = 9999
                 obj.RequiresLineOfSight = false
                 if fireproximityprompt then fireproximityprompt(obj); c = c + 1 end
             end)
@@ -426,9 +493,7 @@ local function disableAllCollision()
         if obj:IsA("BasePart") and obj.CanCollide then
             if not LocalPlayer.Character or not obj:IsDescendantOf(LocalPlayer.Character) then
                 pcall(function()
-                    bypassedCollisions[obj] = obj.CanCollide
-                    obj.CanCollide = false
-                    c = c + 1
+                    bypassedCollisions[obj] = obj.CanCollide; obj.CanCollide = false; c = c + 1
                 end)
             end
         end
@@ -438,9 +503,7 @@ end
 
 local function restoreAllCollision()
     for obj, v in pairs(bypassedCollisions) do
-        if obj and obj.Parent then
-            pcall(function() obj.CanCollide = v end)
-        end
+        if obj and obj.Parent then pcall(function() obj.CanCollide = v end) end
     end
     bypassedCollisions = {}
 end
@@ -468,427 +531,233 @@ local function teleportThroughGate()
     return false
 end
 
--- ============================================================
--- UPDATE CHECK
--- ============================================================
-local function checkForUpdates()
-    if not State.AutoUpdateCheck then return end
-    pcall(function()
-        local v = game:HttpGet(Config.UpdateURL):gsub("%s", "")
-        if v ~= Config.CurrentVersion then
-            Window:PopUpButton({})
-            print("[EXECUTE HUB] New version " .. v .. " available")
-            task.wait(2)
-            loadstring(game:HttpGet(Config.ScriptURL))()
+local function cleanupSpeedInstances()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    for _, n in ipairs({"SpeedBV", "FlyBV", "FlyBG", "AntiFlingBV"}) do
+        local o = hrp:FindFirstChild(n)
+        if o then pcall(function() o:Destroy() end) end
+    end
+end
+
+local function resetCharacterPhysics()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.WalkSpeed = 16 end)
+        pcall(function() hum.JumpPower = 50 end)
+        pcall(function() hum.PlatformStand = false end)
+    end
+    cleanupSpeedInstances()
+end
+
+-- TAB SYSTEM
+local Tabs = {}
+local ActiveTab = "Bypass"
+
+local tabDefs = {
+    {name = "Bypass",    icon = "🔒"},
+    {name = "Movement",  icon = "🏃"},
+    {name = "Save/TP",   icon = "📍"},
+    {name = "Anti-Ban",  icon = "🛡️"},
+    {name = "Settings",  icon = "⚙️"},
+}
+
+for i, def in ipairs(tabDefs) do
+    local Tab = Instance.new("TextButton")
+    Tab.Size = UDim2.new(1, -12, 0, 30)
+    Tab.Position = UDim2.new(0, 6, 0, 56 + ((i-1) * 34))
+    Tab.BackgroundColor3 = Color3.fromRGB(255,255,255); Tab.BackgroundTransparency = 1
+    Tab.Text = "  " .. def.icon .. "  " .. def.name
+    Tab.TextColor3 = Config.TextSecond; Tab.TextSize = 11; Tab.Font = Enum.Font.GothamBold
+    Tab.TextXAlignment = Enum.TextXAlignment.Left; Tab.BorderSizePixel = 0
+    Tab.AutoButtonColor = false; Tab.Parent = Sidebar
+    local TC = Instance.new("UICorner") TC.CornerRadius = UDim.new(0, 6) TC.Parent = Tab
+    local Ind = Instance.new("Frame")
+    Ind.Size = UDim2.new(0, 2, 0.55, 0); Ind.Position = UDim2.new(0, 0, 0.225, 0)
+    Ind.BackgroundColor3 = Config.Accent; Ind.BorderSizePixel = 0; Ind.Visible = false; Ind.Parent = Tab
+    local IndC = Instance.new("UICorner") IndC.CornerRadius = UDim.new(1, 0) IndC.Parent = Ind
+
+    Tabs[def.name] = { Button = Tab, Indicator = Ind }
+
+    Tab.MouseButton1Click:Connect(function()
+        for _, t in pairs(Tabs) do
+            t.Button.BackgroundTransparency = 1
+            t.Button.TextColor3 = Config.TextSecond
+            t.Indicator.Visible = false
+        end
+        Tab.BackgroundTransparency = 0.5
+        Tab.TextColor3 = Config.TextPrimary
+        Ind.Visible = true
+        ActiveTab = def.name
+        PageTitle.Text = string.upper(def.name)
+
+        -- Build page
+        clearPage()
+        if def.name == "Bypass" then
+            createSection(Page, "Bypass Gate System")
+            createToggle(Page, "Bypass All Gates", State.BypassEnabled, function(v) State.BypassEnabled = v; if v then bypassAllGates() end end)
+            createSlider(Page, "Bypass Range", 50, 1000, State.BypassRange, "studs", function(v) State.BypassRange = v end)
+            createToggle(Page, "Remove All Collision", State.RemoveCollision, function(v) State.RemoveCollision = v; if v then disableAllCollision() else restoreAllCollision() end end)
+            createToggle(Page, "Auto Enter Locked Zones", State.AutoEnterLocked, function(v) State.AutoEnterLocked = v end)
+            createSection(Page, "Quick Actions")
+            createButton(Page, "🚪 Bypass All Now", function()
+                local a = bypassAllGates(); local b = disableGateChecks(); local c = bypassAllPrompts()
+                print("[BYPASS] G:" .. a .. " C:" .. b .. " P:" .. c)
+            end, true)
+            createButton(Page, "🔓 Activate All Prompts", function() activateAllPrompts() end)
+            createButton(Page, "🚀 Teleport Through Gate", function() teleportThroughGate() end)
+            createButton(Page, "🧹 Restore All Gates", function()
+                for obj in pairs(bypassedGates) do
+                    if obj and obj.Parent then
+                        pcall(function() obj.CanCollide = true; obj.CanTouch = true; obj.CanQuery = true; obj.Transparency = 0 end)
+                    end
+                end
+                bypassedGates = {}; restoreAllCollision()
+            end)
+        elseif def.name == "Movement" then
+            createSection(Page, "Speed")
+            createToggle(Page, "Speed Hack", State.SpeedEnabled, function(v) State.SpeedEnabled = v end)
+            createSlider(Page, "Speed Value", 16, 500, State.SpeedValue, "WS", function(v) State.SpeedValue = v end)
+            createSlider(Page, "Max Speed Cap", 50, 500, State.MaxSpeed, "WS", function(v) State.MaxSpeed = v end)
+            createSection(Page, "Fly")
+            createToggle(Page, "Fly", State.FlyEnabled, function(v) State.FlyEnabled = v end)
+            createSlider(Page, "Fly Speed", 30, 300, State.FlySpeed, "studs", function(v) State.FlySpeed = v end)
+            createSection(Page, "Extras")
+            createToggle(Page, "Noclip", State.NoclipEnabled, function(v) State.NoclipEnabled = v end)
+            createToggle(Page, "Infinite Jump", State.InfJumpEnabled, function(v) State.InfJumpEnabled = v end)
+            createToggle(Page, "Anti-Fling", State.AntiFlingEnabled, function(v) State.AntiFlingEnabled = v end)
+            createToggle(Page, "Anti-Void", State.AntiVoidEnabled, function(v) State.AntiVoidEnabled = v end)
+            createToggle(Page, "Anti-AFK", State.AntiAfkEnabled, function(v) State.AntiAfkEnabled = v end)
+        elseif def.name == "Save/TP" then
+            createSection(Page, "Save Position")
+            createTextInput(Page, "Save Name", "e.g. base", "spot1", function(v) State.SaveName = v end)
+            createButton(Page, "💾 Save Current Position", function()
+                local char = LocalPlayer.Character
+                if not char then return end
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
+                State.SavedPositions[State.SaveName or "spot1"] = { x = hrp.Position.X, y = hrp.Position.Y, z = hrp.Position.Z }
+            end, true)
+            createSection(Page, "Teleport to XYZ")
+            createTextInput(Page, "Coordinates (x, y, z)", "0, 50, 0", "0, 50, 0", function(v) State.XYZ = v end)
+            createButton(Page, "📍 Teleport to XYZ", function()
+                local coords = {}
+                for n in string.gmatch(State.XYZ or "0,50,0", "[^,%s]+") do table.insert(coords, tonumber(n)) end
+                if #coords == 3 then
+                    local char = LocalPlayer.Character
+                    if char then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        if hrp then hrp.CFrame = CFrame.new(Vector3.new(coords[1], coords[2], coords[3])) end
+                    end
+                end
+            end, true)
+            createSection(Page, "Quick Actions")
+            createButton(Page, "🏠 Teleport to Spawn", function()
+                local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
+                if spawn then
+                    local char = LocalPlayer.Character
+                    if char then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        if hrp then hrp.CFrame = CFrame.new(spawn.Position + Vector3.new(0, 5, 0)) end
+                    end
+                end
+            end)
+            createButton(Page, "🔝 Teleport Up (+50Y)", function()
+                local char = LocalPlayer.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, 50, 0) end
+                end
+            end)
+        elseif def.name == "Anti-Ban" then
+            createSection(Page, "Core")
+            createToggle(Page, "Anti-Ban System", State.AntiBanEnabled, function(v) State.AntiBanEnabled = v end)
+            createToggle(Page, "Jitter ±2", State.JitterEnabled, function(v) State.JitterEnabled = v end)
+            createToggle(Page, "Rate Limit 20Hz", State.RateLimitEnabled, function(v) State.RateLimitEnabled = v end)
+            createToggle(Page, "Ramp Up Smooth", State.RampUpEnabled, function(v) State.RampUpEnabled = v end)
+            createToggle(Page, "Legit Mode (60)", State.LegitMode, function(v) State.LegitMode = v end)
+            createSection(Page, "Emergency")
+            createButton(Page, "🧹 Panic Cleanup", function()
+                resetCharacterPhysics()
+                State.SpeedEnabled = false; State.FlyEnabled = false; State.NoclipEnabled = false
+                State.BypassEnabled = false; State.RemoveCollision = false
+                AntiBan.currentRampSpeed = 16
+            end, true)
+            createButton(Page, "🔧 Reset Physics", function() resetCharacterPhysics() end)
+            createSection(Page, "Diagnostics")
+            createButton(Page, "🔄 Reload Script", function()
+                task.wait(1)
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/refs/heads/main/main.lua"))()
+            end, true)
+        elseif def.name == "Settings" then
+            createSection(Page, "Display")
+            createToggle(Page, "Show Coordinate HUD", State.ShowCoords, function(v) State.ShowCoords = v end)
+            createSection(Page, "Script")
+            createButton(Page, "Rejoin Server", function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
+            createButton(Page, "Unload Script", function()
+                resetCharacterPhysics()
+                ScreenGui:Destroy()
+            end, true)
+            createSection(Page, "About")
+            createButton(Page, "Execute Hub " .. Config.Version, function() end)
         end
     end)
 end
 
--- ============================================================
--- TAB: BYPASS
--- ============================================================
+-- Activate Bypass tab by default
+if Tabs["Bypass"] then
+    Tabs["Bypass"].Button.BackgroundTransparency = 0.5
+    Tabs["Bypass"].Button.TextColor3 = Config.TextPrimary
+    Tabs["Bypass"].Indicator.Visible = true
+end
+-- Build initial page
 do
-    local PageSection = BypassTab:PageSection({
-        Title = "Bypass Gate System",
-        Subtitle = "Bỏ qua mọi yêu cầu quest, level, rebirth để vào vùng khóa"
-    })
-
-    local Form = PageSection:Form()
-
-    local row1 = Form:Row()
-    row1.Left:TitleStack({ Title = "Bypass All Gates", Subtitle = "Vô hiệu hóa mọi barrier" })
-    row1.Right:Toggle({
-        Value = false,
-        ValueChanged = function(_, v)
-            State.BypassEnabled = v
-            if v then
-                local c = bypassAllGates()
-                print("[BYPASS] Bypassed " .. c .. " gates")
+    createSection(Page, "Bypass Gate System")
+    createToggle(Page, "Bypass All Gates", State.BypassEnabled, function(v) State.BypassEnabled = v; if v then bypassAllGates() end end)
+    createSlider(Page, "Bypass Range", 50, 1000, State.BypassRange, "studs", function(v) State.BypassRange = v end)
+    createToggle(Page, "Remove All Collision", State.RemoveCollision, function(v) State.RemoveCollision = v; if v then disableAllCollision() else restoreAllCollision() end end)
+    createToggle(Page, "Auto Enter Locked Zones", State.AutoEnterLocked, function(v) State.AutoEnterLocked = v end)
+    createSection(Page, "Quick Actions")
+    createButton(Page, "🚪 Bypass All Now", function()
+        local a = bypassAllGates(); local b = disableGateChecks(); local c = bypassAllPrompts()
+        print("[BYPASS] G:" .. a .. " C:" .. b .. " P:" .. c)
+    end, true)
+    createButton(Page, "🔓 Activate All Prompts", function() activateAllPrompts() end)
+    createButton(Page, "🚀 Teleport Through Gate", function() teleportThroughGate() end)
+    createButton(Page, "🧹 Restore All Gates", function()
+        for obj in pairs(bypassedGates) do
+            if obj and obj.Parent then
+                pcall(function() obj.CanCollide = true; obj.CanTouch = true; obj.CanQuery = true; obj.Transparency = 0 end)
             end
-        end,
-    })
-
-    local row2 = Form:Row()
-    row2.Left:TitleStack({ Title = "Bypass Range", Subtitle = "Bán kính quét gate" })
-    row2.Right:Slider({
-        Minimum = 50, Maximum = 1000, Value = 500,
-        ValueChanged = function(_, v) State.BypassRange = v end,
-    })
-
-    local row3 = Form:Row()
-    row3.Left:TitleStack({ Title = "Remove All Collision", Subtitle = "Đi xuyên mọi vật thể" })
-    row3.Right:Toggle({
-        Value = false,
-        ValueChanged = function(_, v)
-            State.RemoveCollision = v
-            if v then disableAllCollision() else restoreAllCollision() end
-        end,
-    })
-
-    local row4 = Form:Row()
-    row4.Left:TitleStack({ Title = "Auto Enter Locked Zones", Subtitle = "Tự động TP qua gate" })
-    row4.Right:Toggle({
-        Value = false,
-        ValueChanged = function(_, v) State.AutoEnterLocked = v end,
-    })
-
-    local ActionsSection = BypassTab:PageSection({
-        Title = "Quick Actions",
-        Subtitle = "Bypass tức thì không cần toggle"
-    })
-
-    local ActionsForm = ActionsSection:Form()
-
-    local actionRow1 = ActionsForm:Row()
-    actionRow1.Left:TitleStack({ Title = "Bypass All Now", Subtitle = "Gate + Script + Prompt" })
-    actionRow1.Right:Button({
-        Label = "Run",
-        State = "Primary",
-        Pushed = function()
-            local a = bypassAllGates()
-            local b = disableGateChecks()
-            local c = bypassAllPrompts()
-            print("[BYPASS] G:" .. a .. " C:" .. b .. " P:" .. c)
-        end,
-    })
-
-    local actionRow2 = ActionsForm:Row()
-    actionRow2.Left:TitleStack({ Title = "Activate All Prompts", Subtitle = "Fire tất cả ProximityPrompt" })
-    actionRow2.Right:Button({
-        Label = "Fire",
-        State = "Primary",
-        Pushed = function() activateAllPrompts() end,
-    })
-
-    local actionRow3 = ActionsForm:Row()
-    actionRow3.Left:TitleStack({ Title = "Teleport Through Gate", Subtitle = "TP xuyên gate gần nhất" })
-    actionRow3.Right:Button({
-        Label = "TP",
-        State = "Primary",
-        Pushed = function() teleportThroughGate() end,
-    })
-
-    local actionRow4 = ActionsForm:Row()
-    actionRow4.Left:TitleStack({ Title = "Restore All Gates", Subtitle = "Khôi phục trạng thái gốc" })
-    actionRow4.Right:Button({
-        Label = "Restore",
-        State = "Destructive",
-        Pushed = function()
-            for obj in pairs(bypassedGates) do
-                if obj and obj.Parent then
-                    pcall(function()
-                        obj.CanCollide = true
-                        obj.CanTouch = true
-                        obj.CanQuery = true
-                        obj.Transparency = 0
-                    end)
-                end
-            end
-            bypassedGates = {}
-            restoreAllCollision()
-        end,
-    })
+        end
+        bypassedGates = {}; restoreAllCollision()
+    end)
 end
 
--- ============================================================
--- TAB: MOVEMENT
--- ============================================================
-do
-    local SpeedSection = MovementTab:PageSection({ Title = "Speed", Subtitle = "Tăng tốc di chuyển" })
-    local SpeedForm = SpeedSection:Form()
+-- MIN/CLOSE
+CloseBtn.MouseButton1Click:Connect(function() resetCharacterPhysics(); ScreenGui:Destroy() end)
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        Main.Size = UDim2.new(0, 600, 0, 40)
+        Sidebar.Visible = false; Content.Visible = false
+    else
+        Main.Size = UDim2.new(0, 600, 0, 400)
+        Sidebar.Visible = true; Content.Visible = true
+    end
+end)
 
-    local sr1 = SpeedForm:Row()
-    sr1.Left:TitleStack({ Title = "Speed Hack", Subtitle = "Bật tắt speed" })
-    sr1.Right:Toggle({
-        Value = false,
-        ValueChanged = function(_, v) State.SpeedEnabled = v end,
-    })
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.RightControl then Main.Visible = not Main.Visible end
+end)
 
-    local sr2 = SpeedForm:Row()
-    sr2.Left:TitleStack({ Title = "Speed Value", Subtitle = "16 → 500" })
-    sr2.Right:Slider({
-        Minimum = 16, Maximum = 500, Value = 16,
-        ValueChanged = function(_, v) State.SpeedValue = v end,
-    })
-
-    local sr3 = SpeedForm:Row()
-    sr3.Left:TitleStack({ Title = "Max Speed Cap", Subtitle = "Giới hạn an toàn" })
-    sr3.Right:Slider({
-        Minimum = 50, Maximum = 500, Value = 250,
-        ValueChanged = function(_, v) State.MaxSpeed = v end,
-    })
-
-    local FlySection = MovementTab:PageSection({ Title = "Fly", Subtitle = "Bay tự do" })
-    local FlyForm = FlySection:Form()
-
-    local fr1 = FlyForm:Row()
-    fr1.Left:TitleStack({ Title = "Fly", Subtitle = "WASD + Space/Ctrl" })
-    fr1.Right:Toggle({
-        Value = false,
-        ValueChanged = function(_, v) State.FlyEnabled = v end,
-    })
-
-    local fr2 = FlyForm:Row()
-    fr2.Left:TitleStack({ Title = "Fly Speed", Subtitle = "Studs per second" })
-    fr2.Right:Slider({
-        Minimum = 30, Maximum = 300, Value = 60,
-        ValueChanged = function(_, v) State.FlySpeed = v end,
-    })
-
-    local ExtrasSection = MovementTab:PageSection({ Title = "Movement Extras", Subtitle = "Tính năng bổ trợ" })
-    local ExtrasForm = ExtrasSection:Form()
-
-    local er1 = ExtrasForm:Row()
-    er1.Left:TitleStack({ Title = "Noclip", Subtitle = "Xuyên vật thể" })
-    er1.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.NoclipEnabled = v end })
-
-    local er2 = ExtrasForm:Row()
-    er2.Left:TitleStack({ Title = "Infinite Jump", Subtitle = "Nhảy vô hạn" })
-    er2.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.InfJumpEnabled = v end })
-
-    local er3 = ExtrasForm:Row()
-    er3.Left:TitleStack({ Title = "Anti-Fling", Subtitle = "Chống bị đẩy" })
-    er3.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.AntiFlingEnabled = v end })
-
-    local er4 = ExtrasForm:Row()
-    er4.Left:TitleStack({ Title = "Anti-Void", Subtitle = "Chống rơi vực" })
-    er4.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.AntiVoidEnabled = v end })
-
-    local er5 = ExtrasForm:Row()
-    er5.Left:TitleStack({ Title = "Anti-AFK", Subtitle = "Chống kick idle" })
-    er5.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.AntiAfkEnabled = v end })
-end
-
--- ============================================================
--- TAB: SAVE / TP
--- ============================================================
-do
-    local saveSection = SaveTPTab:PageSection({ Title = "Save Position", Subtitle = "Lưu vị trí hiện tại" })
-    local saveForm = saveSection:Form()
-
-    local sr1 = saveForm:Row()
-    sr1.Left:TitleStack({ Title = "Save Name", Subtitle = "Đặt tên cho vị trí" })
-    sr1.Right:TextField({
-        Placeholder = "e.g. base, farm",
-        Value = "spot1",
-        ValueChanged = function(_, v) State.SaveName = v end,
-    })
-
-    local sr2 = saveForm:Row()
-    sr2.Left:TitleStack({ Title = "Save Current Position", Subtitle = "Lưu X, Y, Z" })
-    sr2.Right:Button({
-        Label = "Save",
-        State = "Primary",
-        Pushed = function()
-            local char = LocalPlayer.Character
-            if not char then return end
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            local name = State.SaveName or "spot1"
-            State.SavedPositions[name] = { x = hrp.Position.X, y = hrp.Position.Y, z = hrp.Position.Z }
-            print("[SAVE] Saved: " .. name)
-        end,
-    })
-
-    local xyzSection = SaveTPTab:PageSection({ Title = "Teleport to XYZ", Subtitle = "Nhập tọa độ thủ công" })
-    local xyzForm = xyzSection:Form()
-
-    local xr1 = xyzForm:Row()
-    xr1.Left:TitleStack({ Title = "Coordinates", Subtitle = "Format: x, y, z" })
-    xr1.Right:TextField({
-        Placeholder = "0, 50, 0",
-        Value = "0, 50, 0",
-        ValueChanged = function(_, v) State.XYZ = v end,
-    })
-
-    local xr2 = xyzForm:Row()
-    xr2.Left:TitleStack({ Title = "Teleport to XYZ", Subtitle = "Di chuyển tới tọa độ" })
-    xr2.Right:Button({
-        Label = "TP",
-        State = "Primary",
-        Pushed = function()
-            local coords = {}
-            for n in string.gmatch(State.XYZ or "0, 50, 0", "[^,%s]+") do
-                table.insert(coords, tonumber(n))
-            end
-            if #coords == 3 then
-                local char = LocalPlayer.Character
-                if char then
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        hrp.CFrame = CFrame.new(Vector3.new(coords[1], coords[2], coords[3]))
-                    end
-                end
-            end
-        end,
-    })
-
-    local quickSection = SaveTPTab:PageSection({ Title = "Quick Actions", Subtitle = "Lệnh nhanh" })
-    local quickForm = quickSection:Form()
-
-    local qr1 = quickForm:Row()
-    qr1.Left:TitleStack({ Title = "Teleport to Spawn", Subtitle = "Về điểm spawn" })
-    qr1.Right:Button({
-        Label = "TP Spawn",
-        State = "Primary",
-        Pushed = function()
-            local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
-            if spawn then
-                local char = LocalPlayer.Character
-                if char then
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    if hrp then hrp.CFrame = CFrame.new(spawn.Position + Vector3.new(0, 5, 0)) end
-                end
-            end
-        end,
-    })
-
-    local qr2 = quickForm:Row()
-    qr2.Left:TitleStack({ Title = "Teleport Up", Subtitle = "+50 studs" })
-    qr2.Right:Button({
-        Label = "Up",
-        State = "Primary",
-        Pushed = function()
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, 50, 0) end
-            end
-        end,
-    })
-end
-
--- ============================================================
--- TAB: ANTI-BAN
--- ============================================================
-do
-    local coreSection = AntiBanTab:PageSection({ Title = "Core", Subtitle = "Chống phát hiện" })
-    local coreForm = coreSection:Form()
-
-    local cr1 = coreForm:Row()
-    cr1.Left:TitleStack({ Title = "Anti-Ban System", Subtitle = "Bật hệ thống chống ban" })
-    cr1.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.AntiBanEnabled = v end })
-
-    local cr2 = coreForm:Row()
-    cr2.Left:TitleStack({ Title = "Jitter ±2", Subtitle = "Random tốc độ" })
-    cr2.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.JitterEnabled = v end })
-
-    local cr3 = coreForm:Row()
-    cr3.Left:TitleStack({ Title = "Rate Limit 20Hz", Subtitle = "Giảm tần suất update" })
-    cr3.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.RateLimitEnabled = v end })
-
-    local cr4 = coreForm:Row()
-    cr4.Left:TitleStack({ Title = "Ramp Up Smooth", Subtitle = "Tăng tốc từ từ" })
-    cr4.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.RampUpEnabled = v end })
-
-    local cr5 = coreForm:Row()
-    cr5.Left:TitleStack({ Title = "Legit Mode", Subtitle = "Giới hạn speed 60" })
-    cr5.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.LegitMode = v end })
-
-    local emergencySection = AntiBanTab:PageSection({ Title = "Emergency", Subtitle = "Xử lý khẩn cấp" })
-    local emergencyForm = emergencySection:Form()
-
-    local er1 = emergencyForm:Row()
-    er1.Left:TitleStack({ Title = "Panic Cleanup", Subtitle = "Xóa mọi dấu vết" })
-    er1.Right:Button({
-        Label = "Clean",
-        State = "Destructive",
-        Pushed = function()
-            resetCharacterPhysics()
-            State.SpeedEnabled = false
-            State.FlyEnabled = false
-            State.NoclipEnabled = false
-            State.BypassEnabled = false
-            State.RemoveCollision = false
-            AntiBan.currentRampSpeed = 16
-            print("[ANTI-BAN] Panic cleanup executed")
-        end,
-    })
-
-    local er2 = emergencyForm:Row()
-    er2.Left:TitleStack({ Title = "Reset Physics", Subtitle = "Reset WalkSpeed/JumpPower" })
-    er2.Right:Button({
-        Label = "Reset",
-        State = "Secondary",
-        Pushed = function() resetCharacterPhysics() end,
-    })
-
-    local diagSection = AntiBanTab:PageSection({ Title = "Diagnostics", Subtitle = "Kiểm tra hệ thống" })
-    local diagForm = diagSection:Form()
-
-    local dr1 = diagForm:Row()
-    dr1.Left:TitleStack({ Title = "Check Updates", Subtitle = "So sánh version" })
-    dr1.Right:Button({
-        Label = "Check",
-        State = "Primary",
-        Pushed = function() checkForUpdates() end,
-    })
-
-    local dr2 = diagForm:Row()
-    dr2.Left:TitleStack({ Title = "Force Reload", Subtitle = "Tải lại script" })
-    dr2.Right:Button({
-        Label = "Reload",
-        State = "Primary",
-        Pushed = function()
-            task.wait(1)
-            loadstring(game:HttpGet(Config.ScriptURL))()
-        end,
-    })
-end
-
--- ============================================================
--- TAB: SETTINGS
--- ============================================================
-do
-    local displaySection = SettingsTab:PageSection({ Title = "Display", Subtitle = "Cài đặt hiển thị" })
-    local displayForm = displaySection:Form()
-
-    local dr1 = displayForm:Row()
-    dr1.Left:TitleStack({ Title = "Show Coordinate HUD", Subtitle = "Hiển thị tọa độ" })
-    dr1.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.ShowCoords = v end })
-
-    local updatesSection = SettingsTab:PageSection({ Title = "Updates", Subtitle = "Cập nhật tự động" })
-    local updatesForm = updatesSection:Form()
-
-    local ur1 = updatesForm:Row()
-    ur1.Left:TitleStack({ Title = "Auto Update Check", Subtitle = "Kiểm tra mỗi lần load" })
-    ur1.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.AutoUpdateCheck = v end })
-
-    local scriptSection = SettingsTab:PageSection({ Title = "Script", Subtitle = "Quản lý script" })
-    local scriptForm = scriptSection:Form()
-
-    local sr1 = scriptForm:Row()
-    sr1.Left:TitleStack({ Title = "Rejoin Server", Subtitle = "Vào lại server" })
-    sr1.Right:Button({
-        Label = "Rejoin",
-        State = "Primary",
-        Pushed = function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end,
-    })
-
-    local sr2 = scriptForm:Row()
-    sr2.Left:TitleStack({ Title = "Unload Script", Subtitle = "Tắt hoàn toàn" })
-    sr2.Right:Button({
-        Label = "Unload",
-        State = "Destructive",
-        Pushed = function()
-            resetCharacterPhysics()
-            if App.Structures and App.Structures.WindowPill then
-                App.Structures.WindowPill:Destroy()
-            end
-        end,
-    })
-
-    local aboutSection = SettingsTab:PageSection({ Title = "About", Subtitle = "Thông tin" })
-    local aboutForm = aboutSection:Form()
-
-    local ar1 = aboutForm:Row()
-    ar1.Left:TitleStack({ Title = "Execute Hub", Subtitle = Config.Version })
-    ar1.Right:Label({ Text = "Cascade UI" })
-end
-
--- ============================================================
 -- COORDINATE HUD
--- ============================================================
 local CoordGui = Instance.new("ScreenGui")
 CoordGui.Name = "ExecuteHubHUD"
 CoordGui.ResetOnSpawn = false
@@ -897,55 +766,35 @@ pcall(function() CoordGui.Parent = CoreGui end)
 if not CoordGui.Parent then CoordGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 local CoordHUD = Instance.new("Frame")
-CoordHUD.Size = UDim2.new(0, 190, 0, 62)
-CoordHUD.Position = UDim2.new(1, -200, 0, 60)
-CoordHUD.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-CoordHUD.BackgroundTransparency = 0.15
-CoordHUD.BorderSizePixel = 0
-CoordHUD.Active = true
-CoordHUD.Draggable = true
-CoordHUD.Parent = CoordGui
+CoordHUD.Size = UDim2.new(0, 190, 0, 62); CoordHUD.Position = UDim2.new(1, -200, 0, 60)
+CoordHUD.BackgroundColor3 = Config.BgCard; CoordHUD.BackgroundTransparency = 0.2
+CoordHUD.BorderSizePixel = 0; CoordHUD.Active = true; CoordHUD.Draggable = true; CoordHUD.Parent = CoordGui
 local CHC = Instance.new("UICorner") CHC.CornerRadius = UDim.new(0, 8) CHC.Parent = CoordHUD
-local CHS = Instance.new("UIStroke") CHS.Color = Color3.fromRGB(255, 35, 45) CHS.Thickness = 1 CHS.Transparency = 0.5 CHS.Parent = CoordHUD
+local CHS = Instance.new("UIStroke") CHS.Color = Config.Accent CHS.Thickness = 1 CHS.Transparency = 0.5 CHS.Parent = CoordHUD
 
 local CoordTitle = Instance.new("TextLabel")
-CoordTitle.Size = UDim2.new(1, -12, 0, 14)
-CoordTitle.Position = UDim2.new(0, 6, 0, 4)
-CoordTitle.BackgroundTransparency = 1
-CoordTitle.Text = "📍 POSITION"
-CoordTitle.TextColor3 = Color3.fromRGB(255, 35, 45)
-CoordTitle.TextSize = 9
-CoordTitle.Font = Enum.Font.GothamBold
-CoordTitle.TextXAlignment = Enum.TextXAlignment.Left
-CoordTitle.Parent = CoordHUD
+CoordTitle.Size = UDim2.new(1, -12, 0, 14); CoordTitle.Position = UDim2.new(0, 6, 0, 4)
+CoordTitle.BackgroundTransparency = 1; CoordTitle.Text = "📍 POSITION"
+CoordTitle.TextColor3 = Config.Accent; CoordTitle.TextSize = 9; CoordTitle.Font = Enum.Font.GothamBold
+CoordTitle.TextXAlignment = Enum.TextXAlignment.Left; CoordTitle.Parent = CoordHUD
 
 local CoordText = Instance.new("TextLabel")
-CoordText.Size = UDim2.new(1, -12, 0, 18)
-CoordText.Position = UDim2.new(0, 6, 0, 18)
-CoordText.BackgroundTransparency = 1
-CoordText.Text = "X: 0.0   Y: 0.0\nZ: 0.0"
-CoordText.TextColor3 = Color3.fromRGB(245, 245, 250)
-CoordText.TextSize = 10
-CoordText.Font = Enum.Font.Code
-CoordText.TextXAlignment = Enum.TextXAlignment.Left
-CoordText.TextYAlignment = Enum.TextYAlignment.Top
+CoordText.Size = UDim2.new(1, -12, 0, 18); CoordText.Position = UDim2.new(0, 6, 0, 18)
+CoordText.BackgroundTransparency = 1; CoordText.Text = "X: 0.0   Y: 0.0\nZ: 0.0"
+CoordText.TextColor3 = Config.TextPrimary; CoordText.TextSize = 10; CoordText.Font = Enum.Font.Code
+CoordText.TextXAlignment = Enum.TextXAlignment.Left; CoordText.TextYAlignment = Enum.TextYAlignment.Top
 CoordText.Parent = CoordHUD
 
 local StatsText = Instance.new("TextLabel")
-StatsText.Size = UDim2.new(1, -12, 0, 12)
-StatsText.Position = UDim2.new(0, 6, 0, 44)
-StatsText.BackgroundTransparency = 1
-StatsText.Text = "FPS: --"
-StatsText.TextColor3 = Color3.fromRGB(160, 160, 175)
-StatsText.TextSize = 9
-StatsText.Font = Enum.Font.Code
-StatsText.TextXAlignment = Enum.TextXAlignment.Left
-StatsText.Parent = CoordHUD
+StatsText.Size = UDim2.new(1, -12, 0, 12); StatsText.Position = UDim2.new(0, 6, 0, 44)
+StatsText.BackgroundTransparency = 1; StatsText.Text = "FPS: --"
+StatsText.TextColor3 = Config.TextSecond; StatsText.TextSize = 9; StatsText.Font = Enum.Font.Code
+StatsText.TextXAlignment = Enum.TextXAlignment.Left; StatsText.Parent = CoordHUD
 
 task.spawn(function()
     while task.wait(0.1) do
+        CoordHUD.Visible = State.ShowCoords
         if State.ShowCoords then
-            CoordHUD.Visible = true
             local char = LocalPlayer.Character
             if char then
                 local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -954,8 +803,6 @@ task.spawn(function()
                     CoordText.Text = string.format("X: %.1f   Y: %.1f\nZ: %.1f", p.X, p.Y, p.Z)
                 end
             end
-        else
-            CoordHUD.Visible = false
         end
     end
 end)
@@ -971,16 +818,13 @@ task.spawn(function()
     end)
 end)
 
--- ============================================================
 -- CORE LOOPS
--- ============================================================
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp then return end
-
     if State.SpeedEnabled then
         if State.RateLimitEnabled then
             AntiBan.tickCounter = (AntiBan.tickCounter + 1) % 3
@@ -994,9 +838,7 @@ RunService.RenderStepped:Connect(function()
             if math.abs(d) > 0.5 then
                 AntiBan.currentRampSpeed = AntiBan.currentRampSpeed + d * 0.05
                 target = math.floor(AntiBan.currentRampSpeed)
-            else
-                AntiBan.currentRampSpeed = target
-            end
+            else AntiBan.currentRampSpeed = target end
         end
         local sp = target
         if State.JitterEnabled then
@@ -1014,16 +856,12 @@ RunService.RenderStepped:Connect(function()
         local bv = hrp:FindFirstChild("SpeedBV")
         if not bv then
             bv = Instance.new("BodyVelocity")
-            bv.Name = "SpeedBV"
-            bv.MaxForce = Vector3.new(math.huge, 0, math.huge)
-            bv.Parent = hrp
+            bv.Name = "SpeedBV"; bv.MaxForce = Vector3.new(math.huge, 0, math.huge); bv.Parent = hrp
         end
         if hum.MoveDirection.Magnitude > 0.1 then
             local dir = hum.MoveDirection
             bv.Velocity = Vector3.new(dir.X * sp, 0, dir.Z * sp)
-        else
-            bv.Velocity = Vector3.new(0, 0, 0)
-        end
+        else bv.Velocity = Vector3.new(0, 0, 0) end
     else
         pcall(function() hum.WalkSpeed = 16 end)
         pcall(function() hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0) end)
@@ -1036,10 +874,7 @@ task.spawn(function() while task.wait(0.5) do cleanupSpeedInstances() end end)
 
 task.spawn(function()
     while task.wait(2) do
-        if State.BypassEnabled then
-            pcall(bypassAllGates)
-            pcall(bypassAllPrompts)
-        end
+        if State.BypassEnabled then pcall(bypassAllGates); pcall(bypassAllPrompts) end
         if State.RemoveCollision then pcall(disableAllCollision) end
     end
 end)
@@ -1089,15 +924,11 @@ local function startFly()
     local oldBV = hrp:FindFirstChild("FlyBV"); if oldBV then oldBV:Destroy() end
     local oldBG = hrp:FindFirstChild("FlyBG"); if oldBG then oldBG:Destroy() end
     local bv = Instance.new("BodyVelocity")
-    bv.Name = "FlyBV"
-    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bv.Velocity = Vector3.new(0, 0, 0)
-    bv.Parent = hrp
+    bv.Name = "FlyBV"; bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bv.Velocity = Vector3.new(0, 0, 0); bv.Parent = hrp
     local bg = Instance.new("BodyGyro")
-    bg.Name = "FlyBG"
-    bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bg.P = 10000; bg.D = 500
-    bg.Parent = hrp
+    bg.Name = "FlyBG"; bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bg.P = 10000; bg.D = 500; bg.Parent = hrp
     hum.PlatformStand = true
     flyConn = RunService.RenderStepped:Connect(function()
         local cam = workspace.CurrentCamera
@@ -1151,20 +982,9 @@ LocalPlayer.CharacterAdded:Connect(function()
     if flyCleanup then flyCleanup(); flyConn = nil; flyCleanup = nil end
     AntiBan.currentRampSpeed = 16
     task.wait(2)
-    if State.BypassEnabled then
-        pcall(bypassAllGates)
-        pcall(bypassAllPrompts)
-    end
+    if State.BypassEnabled then pcall(bypassAllGates); pcall(bypassAllPrompts) end
 end)
 
--- ============================================================
--- STARTUP
--- ============================================================
-print("[EXECUTE HUB] " .. Config.Version .. " loaded (Cascade UI)")
-print("[EXECUTE HUB] User: " .. LocalPlayer.Name)
+print("[EXECUTE HUB] " .. Config.Version .. " loaded (Cascade Style Inline UI)")
 print("[EXECUTE HUB] Tabs: Bypass, Movement, Save/TP, Anti-Ban, Settings")
-
-task.spawn(function()
-    task.wait(3)
-    checkForUpdates()
-end)
+print("[EXECUTE HUB] Right Ctrl = toggle UI")
