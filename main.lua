@@ -1,10 +1,10 @@
 --[[
 ================================================================
-    EXECUTE HUB - v7.0.0 UNIVERSAL BYPASS EDITION
-    Bỏ qua mọi yêu cầu: Quest/Level/Rebirth → vào vùng khóa
-    Layout: Loading → Main, sidebar trong suốt, content đen
-    Features: Speed, Fly, Noclip, Bypass Gate, Save/TP, Coords HUD
-    Hoạt động trên MỌI bản đồ Roblox
+    EXECUTE HUB - v9.0.0 CASCADE UI EDITION
+    UI: Cascade (macOS style, dark/red theme)
+    Features: Bypass Gates, Speed, Fly, Noclip, Save/TP, Anti-Ban
+    Loading screen + Coordinate HUD
+    Tương thích: Delta, Arceus X, Fluxus, Krnl, Synapse
 ================================================================
 ]]
 
@@ -25,36 +25,21 @@ local LocalPlayer        = Players.LocalPlayer
 -- CONFIG
 -- ============================================================
 local Config = {
-    BgMain          = Color3.fromRGB(12, 12, 14),
-    BgPanel         = Color3.fromRGB(20, 20, 24),
-    BgCard          = Color3.fromRGB(28, 28, 34),
-    BgContent       = Color3.fromRGB(8, 8, 10),          -- Nền đen content
-    BgHover         = Color3.fromRGB(45, 45, 55),
-    BgSidebar       = Color3.fromRGB(10, 10, 12),
-    BgSidebarTransp = 0.35,                              -- Sidebar trong suốt
-    Accent          = Color3.fromRGB(255, 35, 45),
-    AccentHover     = Color3.fromRGB(255, 60, 70),
-    TextPrimary     = Color3.fromRGB(245, 245, 250),
-    TextSecond      = Color3.fromRGB(160, 160, 175),
-    TextMuted       = Color3.fromRGB(110, 110, 125),
-    Border          = Color3.fromRGB(255, 255, 255),
-    BorderTransp    = 0.9,
-    Success         = Color3.fromRGB(60, 220, 110),
-    Warning         = Color3.fromRGB(255, 180, 40),
-    Version         = "v7.0.0-Bypass",
-    Title           = "EXECUTE HUB",
-    LogoText        = "EH",
-    Width           = 500,
-    Height          = 380,
-    UpdateURL       = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/version.txt",
-    ScriptURL       = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/main.lua",
-    CurrentVersion  = "7.0.0"
+    Version        = "9.0.0-Cascade",
+    UpdateURL      = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/version.txt",
+    ScriptURL      = "https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/main.lua",
+    CurrentVersion = "9.0.0"
 }
 
 -- ============================================================
 -- STATE
 -- ============================================================
 local State = {
+    -- Bypass
+    BypassEnabled    = false,
+    BypassRange      = 500,
+    RemoveCollision  = false,
+    AutoEnterLocked  = false,
     -- Movement
     SpeedEnabled     = false,
     SpeedValue       = 16,
@@ -71,48 +56,257 @@ local State = {
     RateLimitEnabled = true,
     LegitMode        = false,
     RampUpEnabled    = true,
-    -- Bypass System
-    BypassEnabled    = false,
-    BypassRange      = 500,
-    AutoEnterLocked  = false,
-    RemoveCollision  = false,
     -- Utils
     ShowCoords       = true,
-    ShowFPS          = false,
     AntiAfkEnabled   = true,
     AutoUpdateCheck  = true,
-    -- Save/TP
     SavedPositions   = {},
 }
 
-local AntiBanState = {
-    tickCounter = 0,
-    currentRampSpeed = 16,
-}
+local AntiBan = { tickCounter = 0, currentRampSpeed = 16 }
 
 -- ============================================================
--- CLEANUP
+-- CLEANUP PREVIOUS
 -- ============================================================
 pcall(function()
-    if CoreGui:FindFirstChild("ExecuteHub") then CoreGui.ExecuteHub:Destroy() end
+    if CoreGui:FindFirstChild("Cascade") then CoreGui.Cascade:Destroy() end
     if CoreGui:FindFirstChild("ExecuteHubLoading") then CoreGui.ExecuteHubLoading:Destroy() end
+    if CoreGui:FindFirstChild("ExecuteHubHUD") then CoreGui.ExecuteHubHUD:Destroy() end
 end)
 pcall(function()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if pg then
-        if pg:FindFirstChild("ExecuteHub") then pg.ExecuteHub:Destroy() end
+        if pg:FindFirstChild("Cascade") then pg.Cascade:Destroy() end
         if pg:FindFirstChild("ExecuteHubLoading") then pg.ExecuteHubLoading:Destroy() end
+        if pg:FindFirstChild("ExecuteHubHUD") then pg.ExecuteHubHUD:Destroy() end
     end
 end)
 
+-- ============================================================
+-- LOADING SCREEN
+-- ============================================================
+local LoadingGui = Instance.new("ScreenGui")
+LoadingGui.Name = "ExecuteHubLoading"
+LoadingGui.ResetOnSpawn = false
+LoadingGui.IgnoreGuiInset = true
+LoadingGui.DisplayOrder = 1000
+pcall(function() LoadingGui.Parent = CoreGui end)
+if not LoadingGui.Parent then LoadingGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local LoadFrame = Instance.new("Frame")
+LoadFrame.Size = UDim2.new(0, 340, 0, 180)
+LoadFrame.Position = UDim2.new(0.5, -170, 0.5, -90)
+LoadFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+LoadFrame.BorderSizePixel = 0
+LoadFrame.Parent = LoadingGui
+local LFC = Instance.new("UICorner") LFC.CornerRadius = UDim.new(0, 14) LFC.Parent = LoadFrame
+local LFS = Instance.new("UIStroke") LFS.Color = Color3.fromRGB(255, 35, 45) LFS.Thickness = 1.5 LFS.Parent = LoadFrame
+
+local LoadLogo = Instance.new("TextLabel")
+LoadLogo.Size = UDim2.new(1, 0, 0, 40)
+LoadLogo.Position = UDim2.new(0, 0, 0, 20)
+LoadLogo.BackgroundTransparency = 1
+LoadLogo.Text = "EXECUTE HUB"
+LoadLogo.TextColor3 = Color3.fromRGB(255, 35, 45)
+LoadLogo.TextSize = 24
+LoadLogo.Font = Enum.Font.GothamBlack
+LoadLogo.Parent = LoadFrame
+
+local LoadVer = Instance.new("TextLabel")
+LoadVer.Size = UDim2.new(1, 0, 0, 14)
+LoadVer.Position = UDim2.new(0, 0, 0, 58)
+LoadVer.BackgroundTransparency = 1
+LoadVer.Text = Config.Version
+LoadVer.TextColor3 = Color3.fromRGB(110, 110, 125)
+LoadVer.TextSize = 10
+LoadVer.Font = Enum.Font.Gotham
+LoadVer.Parent = LoadFrame
+
+local LoadBarBg = Instance.new("Frame")
+LoadBarBg.Size = UDim2.new(0, 260, 0, 6)
+LoadBarBg.Position = UDim2.new(0.5, -130, 0, 100)
+LoadBarBg.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+LoadBarBg.BorderSizePixel = 0
+LoadBarBg.Parent = LoadFrame
+local LBBC = Instance.new("UICorner") LBBC.CornerRadius = UDim.new(1, 0) LBBC.Parent = LoadBarBg
+
+local LoadBarFill = Instance.new("Frame")
+LoadBarFill.Size = UDim2.new(0, 0, 1, 0)
+LoadBarFill.BackgroundColor3 = Color3.fromRGB(255, 35, 45)
+LoadBarFill.BorderSizePixel = 0
+LoadBarFill.Parent = LoadBarBg
+local LBFC = Instance.new("UICorner") LBFC.CornerRadius = UDim.new(1, 0) LBFC.Parent = LoadBarFill
+
+local LoadStatus = Instance.new("TextLabel")
+LoadStatus.Size = UDim2.new(1, 0, 0, 14)
+LoadStatus.Position = UDim2.new(0, 0, 0, 120)
+LoadStatus.BackgroundTransparency = 1
+LoadStatus.Text = "Loading Cascade UI..."
+LoadStatus.TextColor3 = Color3.fromRGB(160, 160, 175)
+LoadStatus.TextSize = 10
+LoadStatus.Font = Enum.Font.GothamBold
+LoadStatus.Parent = LoadFrame
+
+local loadingSteps = { "Loading Cascade UI...", "Checking updates...", "Setting up modules...", "Initializing bypass...", "Ready!" }
+task.spawn(function()
+    for i = 1, 5 do
+        LoadStatus.Text = loadingSteps[i]
+        TweenService:Create(LoadBarFill, TweenInfo.new(0.35), { Size = UDim2.new(i/5, 0, 1, 0) }):Play()
+        task.wait(0.4)
+    end
+    task.wait(0.3)
+    for _, obj in ipairs(LoadFrame:GetDescendants()) do
+        if obj:IsA("TextLabel") then
+            TweenService:Create(obj, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+        elseif obj:IsA("Frame") then
+            TweenService:Create(obj, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+        elseif obj:IsA("UIStroke") then
+            TweenService:Create(obj, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+        end
+    end
+    task.wait(0.5)
+    LoadingGui:Destroy()
+end)
+
+-- ============================================================
+-- LOAD CASCADE LIBRARY
+-- ============================================================
+local Cascade
+do
+    local source = game:HttpGet("https://raw.githubusercontent.com/alwayszoey/Excute-hub-open/main/cascade.lua")
+    Cascade = loadstring(source)()
+end
+
+-- Fallback: nếu không load được, dùng Cascade inline (compact version)
+if not Cascade or not Cascade.New then
+    error("[EXECUTE HUB] Không load được Cascade. Kiểm tra HTTP executor và file cascade.lua trên GitHub.")
+end
+
+-- ============================================================
+-- DARK/RED THEME OVERRIDE
+-- ============================================================
+local DarkRedTheme = {
+    Text = {
+        Primary         = { Cascade.Themes.Dark.Text.Primary[1], 0.15 },
+        Secondary       = { Cascade.Themes.Dark.Text.Secondary[1], 0.45 },
+        Tertiary        = { Cascade.Themes.Dark.Text.Tertiary[1], 0.75 },
+        PrimaryAccent   = { Color3.fromRGB(255, 35, 45), 0.62 },
+        SelectionPrimary= { Color3.fromRGB(255, 255, 255), 0 },
+    },
+    Controls = {
+        Background      = { Color3.fromRGB(12, 12, 14), 0 },
+        View            = { Color3.fromRGB(20, 20, 24), 0 },
+        ViewBorder      = { Color3.fromRGB(255, 255, 255), 0.92 },
+        Sidebar         = { Color3.fromRGB(8, 8, 10), 0.15 },
+        Separator       = {
+            Background  = { Color3.fromRGB(0, 0, 0), 0.5 },
+            Shadow      = { Color3.fromRGB(255, 255, 255), 0.9 },
+        },
+        Titlebar        = { Color3.fromRGB(22, 22, 26), 0 },
+        TitlebarShadow  = {
+            Background  = { Color3.fromRGB(0, 0, 0), 0.5 },
+            Color       = { Color3.fromRGB(0, 0, 0) },
+            Transparency= { 0.5 },
+        },
+        Selection       = { Color3.fromRGB(255, 35, 45), 0 },
+        SelectionFocused= { Color3.fromRGB(255, 35, 45), 0 },
+        SelectionFocusedAccent = { Color3.fromRGB(255, 255, 255), 0.1 },
+        SelectionStroke = { Color3.fromRGB(255, 35, 45), 0.4 },
+        Exit            = { Color3.fromRGB(255, 95, 87), 0 },
+        Minimize        = { Color3.fromRGB(255, 189, 46), 0 },
+        Zoom            = { Color3.fromRGB(39, 201, 63), 0 },
+        WindowControlIcon = { Color3.fromRGB(0, 0, 0), 0.5 },
+        WindowControlStroke = { Color3.fromRGB(255, 255, 255), 0.85 },
+        Toggle          = {
+            Knob        = { Color3.fromRGB(255, 255, 255), 0 },
+            KnobEffects = { Color3.fromRGB(255, 255, 255), 0 },
+            SwitchOff   = { Color3.fromRGB(70, 70, 85), 0.6 },
+            SwitchOn    = { Color3.fromRGB(255, 35, 45), 0 },
+            DepthEffect = { Color3.fromRGB(120, 15, 20) },
+        },
+        Slider          = {
+            Track       = { Color3.fromRGB(45, 45, 55), 0 },
+            TrackEffects= { Color3.fromRGB(0, 0, 0), 0.9 },
+            TrackFill   = { Color3.fromRGB(255, 35, 45), 0 },
+            Thumb       = { Color3.fromRGB(255, 255, 255), 0 },
+            ThumbStroke = { Color3.fromRGB(0, 0, 0), 0.8 },
+            ThumbEffects= { Color3.fromRGB(255, 255, 255), 0 },
+        },
+        Button          = {
+            Shadow      = { Color3.fromRGB(0, 0, 0) },
+            FillPrimary = { Color3.fromRGB(255, 35, 45) },
+            FillSecondary = { Color3.fromRGB(40, 40, 50) },
+        },
+        Stepper         = {
+            Background  = { Color3.fromRGB(35, 35, 45), 0 },
+            Dropshadow  = { Color3.fromRGB(0, 0, 0), 0 },
+            Separator   = { Color3.fromRGB(255, 255, 255), 0.9 },
+            Filler      = { Color3.fromRGB(255, 255, 255), 0.96 },
+            SegmentShadow = { Color3.fromRGB(0, 0, 0) },
+        },
+        RadioButtonGroup = {
+            Background  = { Color3.fromRGB(35, 35, 45), 0 },
+            Dot         = { Color3.fromRGB(255, 255, 255), 0 },
+            Stroke      = { Color3.fromRGB(0, 0, 0), 0.8 },
+            Overlay     = { Color3.fromRGB(255, 255, 255), 0.92 },
+            InnerShadow = { Color3.fromRGB(255, 255, 255), 0.9 },
+        },
+        MenuButton      = {
+            IndicatorBackground = { Color3.fromRGB(255, 255, 255), 0.9 },
+            MenuBackground      = { Color3.fromRGB(35, 35, 42), 0.05 },
+        },
+    },
+    Accents = {
+        Red = { Color3.fromRGB(255, 35, 45), 0 },
+    }
+}
+
+-- ============================================================
+-- INITIALIZE CASCADE
+-- ============================================================
+local App = Cascade.New({
+    WindowPill = true,
+    Theme = DarkRedTheme,
+})
+
+-- ============================================================
+-- WINDOW
+-- ============================================================
+local Window = App:Window({
+    Title = "EXECUTE HUB",
+    Subtitle = "Cascade Edition • " .. Config.Version,
+    Size = UDim2.fromOffset(560, 400),
+    MaxSize = UDim2.fromOffset(1200, 800),
+    MinSize = UDim2.fromOffset(400, 300),
+    Maximized = false,
+    Minimized = false,
+    Searching = true,
+    Resizable = true,
+    Draggable = true,
+    Dropshadow = true,
+    UIBlur = true,
+})
+
+-- ============================================================
+-- TABS
+-- ============================================================
+local BypassTab = Window:Tab({ Title = "Bypass", Icon = Cascade.Symbols["lockOpen"] })
+local MovementTab = Window:Tab({ Title = "Movement", Icon = Cascade.Symbols["figureRun"] })
+local SaveTPTab = Window:Tab({ Title = "Save / TP", Icon = Cascade.Symbols["mappin"] })
+local AntiBanTab = Window:Tab({ Title = "Anti-Ban", Icon = Cascade.Symbols["shield"] })
+local SettingsTab = Window:Tab({ Title = "Settings", Icon = Cascade.Symbols["gearShape"] })
+
+-- ============================================================
+-- HELPER FUNCTIONS
+-- ============================================================
 local function cleanupSpeedInstances()
     local char = LocalPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    for _, name in ipairs({"SpeedBV", "FlyBV", "FlyBG", "AntiFlingBV"}) do
-        local obj = hrp:FindFirstChild(name)
-        if obj then pcall(function() obj:Destroy() end) end
+    for _, n in ipairs({"SpeedBV", "FlyBV", "FlyBG", "AntiFlingBV"}) do
+        local o = hrp:FindFirstChild(n)
+        if o then pcall(function() o:Destroy() end) end
     end
 end
 
@@ -129,133 +323,161 @@ local function resetCharacterPhysics()
 end
 
 -- ============================================================
--- LOADING SCREEN
+-- BYPASS FUNCTIONS
 -- ============================================================
-local LoadingGui = Instance.new("ScreenGui")
-LoadingGui.Name = "ExecuteHubLoading"
-LoadingGui.ResetOnSpawn = false
-LoadingGui.IgnoreGuiInset = true
-LoadingGui.DisplayOrder = 1000
-pcall(function() LoadingGui.Parent = CoreGui end)
-if not LoadingGui.Parent then LoadingGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+local bypassedGates = {}
+local bypassedCollisions = {}
 
-local LoadFrame = Instance.new("Frame")
-LoadFrame.Size = UDim2.new(0, 340, 0, 180)
-LoadFrame.Position = UDim2.new(0.5, -170, 0.5, -90)
-LoadFrame.BackgroundColor3 = Config.BgMain
-LoadFrame.BackgroundTransparency = 0.05
-LoadFrame.BorderSizePixel = 0
-LoadFrame.Parent = LoadingGui
-
-local LoadCorner = Instance.new("UICorner")
-LoadCorner.CornerRadius = UDim.new(0, 14)
-LoadCorner.Parent = LoadFrame
-
-local LoadStroke = Instance.new("UIStroke")
-LoadStroke.Color = Config.Accent
-LoadStroke.Thickness = 1.5
-LoadStroke.Transparency = 0.3
-LoadStroke.Parent = LoadFrame
-
-local LoadLogo = Instance.new("TextLabel")
-LoadLogo.Size = UDim2.new(1, 0, 0, 40)
-LoadLogo.Position = UDim2.new(0, 0, 0, 20)
-LoadLogo.BackgroundTransparency = 1
-LoadLogo.Text = Config.Title
-LoadLogo.TextColor3 = Config.Accent
-LoadLogo.TextSize = 24
-LoadLogo.Font = Enum.Font.GothamBlack
-LoadLogo.Parent = LoadFrame
-
-local LoadVersion = Instance.new("TextLabel")
-LoadVersion.Size = UDim2.new(1, 0, 0, 14)
-LoadVersion.Position = UDim2.new(0, 0, 0, 58)
-LoadVersion.BackgroundTransparency = 1
-LoadVersion.Text = Config.Version
-LoadVersion.TextColor3 = Config.TextMuted
-LoadVersion.TextSize = 10
-LoadVersion.Font = Enum.Font.Gotham
-LoadVersion.Parent = LoadFrame
-
-local LoadBarBg = Instance.new("Frame")
-LoadBarBg.Size = UDim2.new(0, 260, 0, 6)
-LoadBarBg.Position = UDim2.new(0.5, -130, 0, 100)
-LoadBarBg.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-LoadBarBg.BorderSizePixel = 0
-LoadBarBg.Parent = LoadFrame
-
-local LoadBarBgCorner = Instance.new("UICorner")
-LoadBarBgCorner.CornerRadius = UDim.new(1, 0)
-LoadBarBgCorner.Parent = LoadBarBg
-
-local LoadBarFill = Instance.new("Frame")
-LoadBarFill.Size = UDim2.new(0, 0, 1, 0)
-LoadBarFill.BackgroundColor3 = Config.Accent
-LoadBarFill.BorderSizePixel = 0
-LoadBarFill.Parent = LoadBarBg
-
-local LoadBarFillCorner = Instance.new("UICorner")
-LoadBarFillCorner.CornerRadius = UDim.new(1, 0)
-LoadBarFillCorner.Parent = LoadBarFill
-
-local LoadStatus = Instance.new("TextLabel")
-LoadStatus.Size = UDim2.new(1, 0, 0, 14)
-LoadStatus.Position = UDim2.new(0, 0, 0, 120)
-LoadStatus.BackgroundTransparency = 1
-LoadStatus.Text = "Initializing..."
-LoadStatus.TextColor3 = Config.TextSecond
-LoadStatus.TextSize = 10
-LoadStatus.Font = Enum.Font.GothamBold
-LoadStatus.Parent = LoadFrame
-
--- Loading animation
-local loadingSteps = {
-    "Loading modules...",
-    "Checking updates...",
-    "Setting up UI...",
-    "Initializing bypass...",
-    "Ready!"
-}
-
-local loadDone = false
-task.spawn(function()
-    for i = 1, 5 do
-        LoadStatus.Text = loadingSteps[i]
-        local targetSize = i / 5
-        TweenService:Create(LoadBarFill, TweenInfo.new(0.35, Enum.EasingStyle.Quart), {
-            Size = UDim2.new(targetSize, 0, 1, 0)
-        }):Play()
-        task.wait(0.4)
+local function bypassAllGates()
+    local count = 0
+    local kw = {"gate","barrier","wall","door","block","lock","required","rebirth","level","quest","unlock","invisible","region","zone","portal"}
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local n = string.lower(obj.Name)
+            for _, k in ipairs(kw) do
+                if string.find(n, k) then
+                    pcall(function()
+                        obj.CanCollide = false
+                        obj.CanTouch = false
+                        obj.CanQuery = false
+                        obj.Transparency = 1
+                        obj.Massless = true
+                        if not bypassedGates[obj] then bypassedGates[obj] = true; count = count + 1 end
+                    end)
+                    break
+                end
+            end
+        elseif obj:IsA("Model") then
+            local n = string.lower(obj.Name)
+            for _, k in ipairs(kw) do
+                if string.find(n, k) then
+                    for _, p in ipairs(obj:GetDescendants()) do
+                        if p:IsA("BasePart") then
+                            pcall(function()
+                                p.CanCollide = false
+                                p.CanTouch = false
+                                p.CanQuery = false
+                                p.Transparency = 1
+                                p.Massless = true
+                            end)
+                        end
+                    end
+                    count = count + 1
+                    break
+                end
+            end
+        end
     end
-    loadDone = true
-    task.wait(0.3)
-    TweenService:Create(LoadFrame, TweenInfo.new(0.4), {
-        BackgroundTransparency = 1
-    }):Play()
-    TweenService:Create(LoadLogo, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
-    TweenService:Create(LoadVersion, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
-    TweenService:Create(LoadBarBg, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(LoadBarFill, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(LoadStatus, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
-    TweenService:Create(LoadStroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
-    task.wait(0.5)
-    LoadingGui:Destroy()
-end)
+    return count
+end
 
--- Wait for loading to complete before showing main UI
-repeat task.wait(0.1) until loadDone or not LoadingGui.Parent
+local function disableGateChecks()
+    local c = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            local n = string.lower(obj.Name)
+            if string.find(n, "barrier") or string.find(n, "gate") or string.find(n, "door") or string.find(n, "block") then
+                for _, s in ipairs(obj:GetDescendants()) do
+                    if s:IsA("Script") or s:IsA("LocalScript") then
+                        pcall(function() s.Disabled = true end)
+                        c = c + 1
+                    end
+                end
+            end
+        end
+    end
+    return c
+end
+
+local function bypassAllPrompts()
+    local c = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            pcall(function()
+                obj.HoldDuration = 0
+                obj.MaxActivationDistance = 9999
+                obj.RequiresLineOfSight = false
+                obj.Enabled = true
+            end)
+            c = c + 1
+        end
+    end
+    return c
+end
+
+local function activateAllPrompts()
+    local c = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            pcall(function()
+                obj.HoldDuration = 0
+                obj.MaxActivationDistance = 9999
+                obj.RequiresLineOfSight = false
+                if fireproximityprompt then fireproximityprompt(obj); c = c + 1 end
+            end)
+        end
+    end
+    return c
+end
+
+local function disableAllCollision()
+    local c = 0
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.CanCollide then
+            if not LocalPlayer.Character or not obj:IsDescendantOf(LocalPlayer.Character) then
+                pcall(function()
+                    bypassedCollisions[obj] = obj.CanCollide
+                    obj.CanCollide = false
+                    c = c + 1
+                end)
+            end
+        end
+    end
+    return c
+end
+
+local function restoreAllCollision()
+    for obj, v in pairs(bypassedCollisions) do
+        if obj and obj.Parent then
+            pcall(function() obj.CanCollide = v end)
+        end
+    end
+    bypassedCollisions = {}
+end
+
+local function teleportThroughGate()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local nearest, shortest = nil, State.BypassRange
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local n = string.lower(obj.Name)
+            if string.find(n, "gate") or string.find(n, "barrier") or string.find(n, "door") or string.find(n, "wall") then
+                local d = (obj.Position - hrp.Position).Magnitude
+                if d < shortest then shortest = d; nearest = obj end
+            end
+        end
+    end
+    if nearest then
+        local fwd = (nearest.Position - hrp.Position).Unit
+        pcall(function() hrp.CFrame = CFrame.new(nearest.Position + fwd * 20) end)
+        return true
+    end
+    return false
+end
 
 -- ============================================================
--- AUTO UPDATE CHECK
+-- UPDATE CHECK
 -- ============================================================
 local function checkForUpdates()
     if not State.AutoUpdateCheck then return end
     pcall(function()
-        local version = game:HttpGet(Config.UpdateURL)
-        version = string.gsub(version, "%s", "")
-        if version ~= Config.CurrentVersion then
-            task.wait(1)
-            notify("New version: " .. version .. " - Reloading...", false)
+        local v = game:HttpGet(Config.UpdateURL):gsub("%s", "")
+        if v ~= Config.CurrentVersion then
+            Window:PopUpButton({})
+            print("[EXECUTE HUB] New version " .. v .. " available")
             task.wait(2)
             loadstring(game:HttpGet(Config.ScriptURL))()
         end
@@ -263,310 +485,435 @@ local function checkForUpdates()
 end
 
 -- ============================================================
--- GUI ROOT
+-- TAB: BYPASS
 -- ============================================================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ExecuteHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.DisplayOrder = 999
-pcall(function() ScreenGui.Parent = CoreGui end)
-if not ScreenGui.Parent then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+do
+    local PageSection = BypassTab:PageSection({
+        Title = "Bypass Gate System",
+        Subtitle = "Bỏ qua mọi yêu cầu quest, level, rebirth để vào vùng khóa"
+    })
+
+    local Form = PageSection:Form()
+
+    local row1 = Form:Row()
+    row1.Left:TitleStack({ Title = "Bypass All Gates", Subtitle = "Vô hiệu hóa mọi barrier" })
+    row1.Right:Toggle({
+        Value = false,
+        ValueChanged = function(_, v)
+            State.BypassEnabled = v
+            if v then
+                local c = bypassAllGates()
+                print("[BYPASS] Bypassed " .. c .. " gates")
+            end
+        end,
+    })
+
+    local row2 = Form:Row()
+    row2.Left:TitleStack({ Title = "Bypass Range", Subtitle = "Bán kính quét gate" })
+    row2.Right:Slider({
+        Minimum = 50, Maximum = 1000, Value = 500,
+        ValueChanged = function(_, v) State.BypassRange = v end,
+    })
+
+    local row3 = Form:Row()
+    row3.Left:TitleStack({ Title = "Remove All Collision", Subtitle = "Đi xuyên mọi vật thể" })
+    row3.Right:Toggle({
+        Value = false,
+        ValueChanged = function(_, v)
+            State.RemoveCollision = v
+            if v then disableAllCollision() else restoreAllCollision() end
+        end,
+    })
+
+    local row4 = Form:Row()
+    row4.Left:TitleStack({ Title = "Auto Enter Locked Zones", Subtitle = "Tự động TP qua gate" })
+    row4.Right:Toggle({
+        Value = false,
+        ValueChanged = function(_, v) State.AutoEnterLocked = v end,
+    })
+
+    local ActionsSection = BypassTab:PageSection({
+        Title = "Quick Actions",
+        Subtitle = "Bypass tức thì không cần toggle"
+    })
+
+    local ActionsForm = ActionsSection:Form()
+
+    local actionRow1 = ActionsForm:Row()
+    actionRow1.Left:TitleStack({ Title = "Bypass All Now", Subtitle = "Gate + Script + Prompt" })
+    actionRow1.Right:Button({
+        Label = "Run",
+        State = "Primary",
+        Pushed = function()
+            local a = bypassAllGates()
+            local b = disableGateChecks()
+            local c = bypassAllPrompts()
+            print("[BYPASS] G:" .. a .. " C:" .. b .. " P:" .. c)
+        end,
+    })
+
+    local actionRow2 = ActionsForm:Row()
+    actionRow2.Left:TitleStack({ Title = "Activate All Prompts", Subtitle = "Fire tất cả ProximityPrompt" })
+    actionRow2.Right:Button({
+        Label = "Fire",
+        State = "Primary",
+        Pushed = function() activateAllPrompts() end,
+    })
+
+    local actionRow3 = ActionsForm:Row()
+    actionRow3.Left:TitleStack({ Title = "Teleport Through Gate", Subtitle = "TP xuyên gate gần nhất" })
+    actionRow3.Right:Button({
+        Label = "TP",
+        State = "Primary",
+        Pushed = function() teleportThroughGate() end,
+    })
+
+    local actionRow4 = ActionsForm:Row()
+    actionRow4.Left:TitleStack({ Title = "Restore All Gates", Subtitle = "Khôi phục trạng thái gốc" })
+    actionRow4.Right:Button({
+        Label = "Restore",
+        State = "Destructive",
+        Pushed = function()
+            for obj in pairs(bypassedGates) do
+                if obj and obj.Parent then
+                    pcall(function()
+                        obj.CanCollide = true
+                        obj.CanTouch = true
+                        obj.CanQuery = true
+                        obj.Transparency = 0
+                    end)
+                end
+            end
+            bypassedGates = {}
+            restoreAllCollision()
+        end,
+    })
 end
 
 -- ============================================================
--- MAIN WINDOW
+-- TAB: MOVEMENT
 -- ============================================================
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.Size = UDim2.new(0, Config.Width, 0, Config.Height)
-Main.Position = UDim2.new(0.5, -(Config.Width/2), 0.5, -(Config.Height/2))
-Main.BackgroundColor3 = Config.BgMain
-Main.BackgroundTransparency = 0.05
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Main.Parent = ScreenGui
+do
+    local SpeedSection = MovementTab:PageSection({ Title = "Speed", Subtitle = "Tăng tốc di chuyển" })
+    local SpeedForm = SpeedSection:Form()
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 14)
-MainCorner.Parent = Main
+    local sr1 = SpeedForm:Row()
+    sr1.Left:TitleStack({ Title = "Speed Hack", Subtitle = "Bật tắt speed" })
+    sr1.Right:Toggle({
+        Value = false,
+        ValueChanged = function(_, v) State.SpeedEnabled = v end,
+    })
 
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Config.Border
-MainStroke.Thickness = 1
-MainStroke.Transparency = Config.BorderTransp
-MainStroke.Parent = Main
+    local sr2 = SpeedForm:Row()
+    sr2.Left:TitleStack({ Title = "Speed Value", Subtitle = "16 → 500" })
+    sr2.Right:Slider({
+        Minimum = 16, Maximum = 500, Value = 16,
+        ValueChanged = function(_, v) State.SpeedValue = v end,
+    })
 
--- ============================================================
--- TOP BAR
--- ============================================================
-local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 40)
-TopBar.BackgroundColor3 = Config.BgPanel
-TopBar.BackgroundTransparency = 0.3
-TopBar.BorderSizePixel = 0
-TopBar.Parent = Main
+    local sr3 = SpeedForm:Row()
+    sr3.Left:TitleStack({ Title = "Max Speed Cap", Subtitle = "Giới hạn an toàn" })
+    sr3.Right:Slider({
+        Minimum = 50, Maximum = 500, Value = 250,
+        ValueChanged = function(_, v) State.MaxSpeed = v end,
+    })
 
-local TopBarCorner = Instance.new("UICorner")
-TopBarCorner.CornerRadius = UDim.new(0, 14)
-TopBarCorner.Parent = TopBar
+    local FlySection = MovementTab:PageSection({ Title = "Fly", Subtitle = "Bay tự do" })
+    local FlyForm = FlySection:Form()
 
-local TopCover = Instance.new("Frame")
-TopCover.Size = UDim2.new(1, 0, 0, 15)
-TopCover.Position = UDim2.new(0, 0, 1, -15)
-TopCover.BackgroundColor3 = Config.BgPanel
-TopCover.BackgroundTransparency = 0.3
-TopCover.BorderSizePixel = 0
-TopCover.Parent = TopBar
+    local fr1 = FlyForm:Row()
+    fr1.Left:TitleStack({ Title = "Fly", Subtitle = "WASD + Space/Ctrl" })
+    fr1.Right:Toggle({
+        Value = false,
+        ValueChanged = function(_, v) State.FlyEnabled = v end,
+    })
 
--- Window dots
-local DotsFrame = Instance.new("Frame")
-DotsFrame.Size = UDim2.new(0, 50, 0, 12)
-DotsFrame.Position = UDim2.new(0, 12, 0.5, -6)
-DotsFrame.BackgroundTransparency = 1
-DotsFrame.Parent = TopBar
+    local fr2 = FlyForm:Row()
+    fr2.Left:TitleStack({ Title = "Fly Speed", Subtitle = "Studs per second" })
+    fr2.Right:Slider({
+        Minimum = 30, Maximum = 300, Value = 60,
+        ValueChanged = function(_, v) State.FlySpeed = v end,
+    })
 
-local dotColors = {
-    Color3.fromRGB(255, 95, 87),
-    Color3.fromRGB(255, 189, 46),
-    Color3.fromRGB(39, 201, 63)
-}
-for i = 1, 3 do
-    local dot = Instance.new("Frame")
-    dot.Size = UDim2.new(0, 9, 0, 9)
-    dot.Position = UDim2.new(0, (i - 1) * 12, 0.5, -4.5)
-    dot.BackgroundColor3 = dotColors[i]
-    dot.BorderSizePixel = 0
-    dot.Parent = DotsFrame
-    local dc = Instance.new("UICorner")
-    dc.CornerRadius = UDim.new(1, 0)
-    dc.Parent = dot
+    local ExtrasSection = MovementTab:PageSection({ Title = "Movement Extras", Subtitle = "Tính năng bổ trợ" })
+    local ExtrasForm = ExtrasSection:Form()
+
+    local er1 = ExtrasForm:Row()
+    er1.Left:TitleStack({ Title = "Noclip", Subtitle = "Xuyên vật thể" })
+    er1.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.NoclipEnabled = v end })
+
+    local er2 = ExtrasForm:Row()
+    er2.Left:TitleStack({ Title = "Infinite Jump", Subtitle = "Nhảy vô hạn" })
+    er2.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.InfJumpEnabled = v end })
+
+    local er3 = ExtrasForm:Row()
+    er3.Left:TitleStack({ Title = "Anti-Fling", Subtitle = "Chống bị đẩy" })
+    er3.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.AntiFlingEnabled = v end })
+
+    local er4 = ExtrasForm:Row()
+    er4.Left:TitleStack({ Title = "Anti-Void", Subtitle = "Chống rơi vực" })
+    er4.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.AntiVoidEnabled = v end })
+
+    local er5 = ExtrasForm:Row()
+    er5.Left:TitleStack({ Title = "Anti-AFK", Subtitle = "Chống kick idle" })
+    er5.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.AntiAfkEnabled = v end })
 end
 
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(0, 200, 0, 18)
-TitleLabel.Position = UDim2.new(0, 66, 0, 6)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = Config.Title
-TitleLabel.TextColor3 = Config.TextPrimary
-TitleLabel.TextSize = 13
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Parent = TopBar
+-- ============================================================
+-- TAB: SAVE / TP
+-- ============================================================
+do
+    local saveSection = SaveTPTab:PageSection({ Title = "Save Position", Subtitle = "Lưu vị trí hiện tại" })
+    local saveForm = saveSection:Form()
 
-local SubLabel = Instance.new("TextLabel")
-SubLabel.Size = UDim2.new(0, 240, 0, 12)
-SubLabel.Position = UDim2.new(0, 66, 0, 22)
-SubLabel.BackgroundTransparency = 1
-SubLabel.Text = "Bypass Edition • " .. Config.Version
-SubLabel.TextColor3 = Config.TextMuted
-SubLabel.TextSize = 9
-SubLabel.Font = Enum.Font.Gotham
-SubLabel.TextXAlignment = Enum.TextXAlignment.Left
-SubLabel.Parent = TopBar
+    local sr1 = saveForm:Row()
+    sr1.Left:TitleStack({ Title = "Save Name", Subtitle = "Đặt tên cho vị trí" })
+    sr1.Right:TextField({
+        Placeholder = "e.g. base, farm",
+        Value = "spot1",
+        ValueChanged = function(_, v) State.SaveName = v end,
+    })
 
-local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 22, 0, 22)
-MinBtn.Position = UDim2.new(1, -54, 0.5, -11)
-MinBtn.BackgroundColor3 = Config.BgCard
-MinBtn.BackgroundTransparency = 0.5
-MinBtn.Text = "−"
-MinBtn.TextColor3 = Config.TextPrimary
-MinBtn.TextSize = 14
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.BorderSizePixel = 0
-MinBtn.AutoButtonColor = false
-MinBtn.Parent = TopBar
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 6)
-MinCorner.Parent = MinBtn
+    local sr2 = saveForm:Row()
+    sr2.Left:TitleStack({ Title = "Save Current Position", Subtitle = "Lưu X, Y, Z" })
+    sr2.Right:Button({
+        Label = "Save",
+        State = "Primary",
+        Pushed = function()
+            local char = LocalPlayer.Character
+            if not char then return end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local name = State.SaveName or "spot1"
+            State.SavedPositions[name] = { x = hrp.Position.X, y = hrp.Position.Y, z = hrp.Position.Z }
+            print("[SAVE] Saved: " .. name)
+        end,
+    })
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 22, 0, 22)
-CloseBtn.Position = UDim2.new(1, -30, 0.5, -11)
-CloseBtn.BackgroundColor3 = Config.Accent
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Config.TextPrimary
-CloseBtn.TextSize = 11
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.BorderSizePixel = 0
-CloseBtn.AutoButtonColor = false
-CloseBtn.Parent = TopBar
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 6)
-CloseCorner.Parent = CloseBtn
+    local xyzSection = SaveTPTab:PageSection({ Title = "Teleport to XYZ", Subtitle = "Nhập tọa độ thủ công" })
+    local xyzForm = xyzSection:Form()
+
+    local xr1 = xyzForm:Row()
+    xr1.Left:TitleStack({ Title = "Coordinates", Subtitle = "Format: x, y, z" })
+    xr1.Right:TextField({
+        Placeholder = "0, 50, 0",
+        Value = "0, 50, 0",
+        ValueChanged = function(_, v) State.XYZ = v end,
+    })
+
+    local xr2 = xyzForm:Row()
+    xr2.Left:TitleStack({ Title = "Teleport to XYZ", Subtitle = "Di chuyển tới tọa độ" })
+    xr2.Right:Button({
+        Label = "TP",
+        State = "Primary",
+        Pushed = function()
+            local coords = {}
+            for n in string.gmatch(State.XYZ or "0, 50, 0", "[^,%s]+") do
+                table.insert(coords, tonumber(n))
+            end
+            if #coords == 3 then
+                local char = LocalPlayer.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = CFrame.new(Vector3.new(coords[1], coords[2], coords[3]))
+                    end
+                end
+            end
+        end,
+    })
+
+    local quickSection = SaveTPTab:PageSection({ Title = "Quick Actions", Subtitle = "Lệnh nhanh" })
+    local quickForm = quickSection:Form()
+
+    local qr1 = quickForm:Row()
+    qr1.Left:TitleStack({ Title = "Teleport to Spawn", Subtitle = "Về điểm spawn" })
+    qr1.Right:Button({
+        Label = "TP Spawn",
+        State = "Primary",
+        Pushed = function()
+            local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
+            if spawn then
+                local char = LocalPlayer.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then hrp.CFrame = CFrame.new(spawn.Position + Vector3.new(0, 5, 0)) end
+                end
+            end
+        end,
+    })
+
+    local qr2 = quickForm:Row()
+    qr2.Left:TitleStack({ Title = "Teleport Up", Subtitle = "+50 studs" })
+    qr2.Right:Button({
+        Label = "Up",
+        State = "Primary",
+        Pushed = function()
+            local char = LocalPlayer.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, 50, 0) end
+            end
+        end,
+    })
+end
 
 -- ============================================================
--- SIDEBAR (trong suốt)
+-- TAB: ANTI-BAN
 -- ============================================================
-local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 130, 1, -48)
-Sidebar.Position = UDim2.new(0, 0, 0, 40)
-Sidebar.BackgroundColor3 = Config.BgSidebar
-Sidebar.BackgroundTransparency = Config.BgSidebarTransp
-Sidebar.BorderSizePixel = 0
-Sidebar.Parent = Main
+do
+    local coreSection = AntiBanTab:PageSection({ Title = "Core", Subtitle = "Chống phát hiện" })
+    local coreForm = coreSection:Form()
 
-local SidebarCorner = Instance.new("UICorner")
-SidebarCorner.CornerRadius = UDim.new(0, 12)
-SidebarCorner.Parent = Sidebar
+    local cr1 = coreForm:Row()
+    cr1.Left:TitleStack({ Title = "Anti-Ban System", Subtitle = "Bật hệ thống chống ban" })
+    cr1.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.AntiBanEnabled = v end })
 
-local SidebarDivider = Instance.new("Frame")
-SidebarDivider.Size = UDim2.new(0, 1, 1, 0)
-SidebarDivider.Position = UDim2.new(1, -1, 0, 0)
-SidebarDivider.BackgroundColor3 = Config.Border
-SidebarDivider.BackgroundTransparency = 0.85
-SidebarDivider.BorderSizePixel = 0
-SidebarDivider.Parent = Sidebar
+    local cr2 = coreForm:Row()
+    cr2.Left:TitleStack({ Title = "Jitter ±2", Subtitle = "Random tốc độ" })
+    cr2.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.JitterEnabled = v end })
 
--- User block
-local UserBlock = Instance.new("Frame")
-UserBlock.Size = UDim2.new(1, -12, 0, 36)
-UserBlock.Position = UDim2.new(0, 6, 0, 8)
-UserBlock.BackgroundColor3 = Config.BgCard
-UserBlock.BackgroundTransparency = 0.6
-UserBlock.BorderSizePixel = 0
-UserBlock.Parent = Sidebar
-local UserBlockCorner = Instance.new("UICorner")
-UserBlockCorner.CornerRadius = UDim.new(0, 6)
-UserBlockCorner.Parent = UserBlock
+    local cr3 = coreForm:Row()
+    cr3.Left:TitleStack({ Title = "Rate Limit 20Hz", Subtitle = "Giảm tần suất update" })
+    cr3.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.RateLimitEnabled = v end })
 
-local UserAvatar = Instance.new("Frame")
-UserAvatar.Size = UDim2.new(0, 24, 0, 24)
-UserAvatar.Position = UDim2.new(0, 6, 0.5, -12)
-UserAvatar.BackgroundColor3 = Config.Accent
-UserAvatar.BorderSizePixel = 0
-UserAvatar.Parent = UserBlock
-local UserAvatarCorner = Instance.new("UICorner")
-UserAvatarCorner.CornerRadius = UDim.new(1, 0)
-UserAvatarCorner.Parent = UserAvatar
+    local cr4 = coreForm:Row()
+    cr4.Left:TitleStack({ Title = "Ramp Up Smooth", Subtitle = "Tăng tốc từ từ" })
+    cr4.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.RampUpEnabled = v end })
 
-local UserInitial = Instance.new("TextLabel")
-UserInitial.Size = UDim2.new(1, 0, 1, 0)
-UserInitial.BackgroundTransparency = 1
-UserInitial.Text = string.sub(LocalPlayer.Name, 1, 1):upper()
-UserInitial.TextColor3 = Config.TextPrimary
-UserInitial.TextSize = 12
-UserInitial.Font = Enum.Font.GothamBold
-UserInitial.Parent = UserAvatar
+    local cr5 = coreForm:Row()
+    cr5.Left:TitleStack({ Title = "Legit Mode", Subtitle = "Giới hạn speed 60" })
+    cr5.Right:Toggle({ Value = false, ValueChanged = function(_, v) State.LegitMode = v end })
 
-local UserName = Instance.new("TextLabel")
-UserName.Size = UDim2.new(1, -38, 0, 12)
-UserName.Position = UDim2.new(0, 36, 0, 6)
-UserName.BackgroundTransparency = 1
-UserName.Text = LocalPlayer.Name
-UserName.TextColor3 = Config.TextPrimary
-UserName.TextSize = 10
-UserName.Font = Enum.Font.GothamBold
-UserName.TextXAlignment = Enum.TextXAlignment.Left
-UserName.TextTruncate = Enum.TextTruncate.AtEnd
-UserName.Parent = UserBlock
+    local emergencySection = AntiBanTab:PageSection({ Title = "Emergency", Subtitle = "Xử lý khẩn cấp" })
+    local emergencyForm = emergencySection:Form()
 
-local UserStatus = Instance.new("TextLabel")
-UserStatus.Size = UDim2.new(1, -38, 0, 10)
-UserStatus.Position = UDim2.new(0, 36, 0, 20)
-UserStatus.BackgroundTransparency = 1
-UserStatus.Text = "● Online"
-UserStatus.TextColor3 = Config.Success
-UserStatus.TextSize = 8
-UserStatus.Font = Enum.Font.GothamMedium
-UserStatus.TextXAlignment = Enum.TextXAlignment.Left
-UserStatus.Parent = UserBlock
+    local er1 = emergencyForm:Row()
+    er1.Left:TitleStack({ Title = "Panic Cleanup", Subtitle = "Xóa mọi dấu vết" })
+    er1.Right:Button({
+        Label = "Clean",
+        State = "Destructive",
+        Pushed = function()
+            resetCharacterPhysics()
+            State.SpeedEnabled = false
+            State.FlyEnabled = false
+            State.NoclipEnabled = false
+            State.BypassEnabled = false
+            State.RemoveCollision = false
+            AntiBan.currentRampSpeed = 16
+            print("[ANTI-BAN] Panic cleanup executed")
+        end,
+    })
+
+    local er2 = emergencyForm:Row()
+    er2.Left:TitleStack({ Title = "Reset Physics", Subtitle = "Reset WalkSpeed/JumpPower" })
+    er2.Right:Button({
+        Label = "Reset",
+        State = "Secondary",
+        Pushed = function() resetCharacterPhysics() end,
+    })
+
+    local diagSection = AntiBanTab:PageSection({ Title = "Diagnostics", Subtitle = "Kiểm tra hệ thống" })
+    local diagForm = diagSection:Form()
+
+    local dr1 = diagForm:Row()
+    dr1.Left:TitleStack({ Title = "Check Updates", Subtitle = "So sánh version" })
+    dr1.Right:Button({
+        Label = "Check",
+        State = "Primary",
+        Pushed = function() checkForUpdates() end,
+    })
+
+    local dr2 = diagForm:Row()
+    dr2.Left:TitleStack({ Title = "Force Reload", Subtitle = "Tải lại script" })
+    dr2.Right:Button({
+        Label = "Reload",
+        State = "Primary",
+        Pushed = function()
+            task.wait(1)
+            loadstring(game:HttpGet(Config.ScriptURL))()
+        end,
+    })
+end
 
 -- ============================================================
--- CONTENT (nền đen)
+-- TAB: SETTINGS
 -- ============================================================
-local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1, -138, 1, -48)
-Content.Position = UDim2.new(0, 138, 0, 40)
-Content.BackgroundColor3 = Config.BgContent
-Content.BackgroundTransparency = 0
-Content.BorderSizePixel = 0
-Content.Parent = Main
+do
+    local displaySection = SettingsTab:PageSection({ Title = "Display", Subtitle = "Cài đặt hiển thị" })
+    local displayForm = displaySection:Form()
 
-local ContentCorner = Instance.new("UICorner")
-ContentCorner.CornerRadius = UDim.new(0, 12)
-ContentCorner.Parent = Content
+    local dr1 = displayForm:Row()
+    dr1.Left:TitleStack({ Title = "Show Coordinate HUD", Subtitle = "Hiển thị tọa độ" })
+    dr1.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.ShowCoords = v end })
 
-local PageTitle = Instance.new("TextLabel")
-PageTitle.Size = UDim2.new(1, -16, 0, 22)
-PageTitle.Position = UDim2.new(0, 8, 0, 2)
-PageTitle.BackgroundTransparency = 1
-PageTitle.Text = "BYPASS"
-PageTitle.TextColor3 = Config.TextPrimary
-PageTitle.TextSize = 14
-PageTitle.Font = Enum.Font.GothamBlack
-PageTitle.TextXAlignment = Enum.TextXAlignment.Left
-PageTitle.Parent = Content
+    local updatesSection = SettingsTab:PageSection({ Title = "Updates", Subtitle = "Cập nhật tự động" })
+    local updatesForm = updatesSection:Form()
 
-local TitleLine = Instance.new("Frame")
-TitleLine.Size = UDim2.new(1, -16, 0, 1)
-TitleLine.Position = UDim2.new(0, 8, 0, 26)
-TitleLine.BackgroundColor3 = Config.Accent
-TitleLine.BorderSizePixel = 0
-TitleLine.Parent = Content
+    local ur1 = updatesForm:Row()
+    ur1.Left:TitleStack({ Title = "Auto Update Check", Subtitle = "Kiểm tra mỗi lần load" })
+    ur1.Right:Toggle({ Value = true, ValueChanged = function(_, v) State.AutoUpdateCheck = v end })
 
-local PageHolder = Instance.new("Frame")
-PageHolder.Size = UDim2.new(1, -16, 1, -34)
-PageHolder.Position = UDim2.new(0, 8, 0, 32)
-PageHolder.BackgroundTransparency = 1
-PageHolder.Parent = Content
+    local scriptSection = SettingsTab:PageSection({ Title = "Script", Subtitle = "Quản lý script" })
+    local scriptForm = scriptSection:Form()
 
-local Page = Instance.new("ScrollingFrame")
-Page.Size = UDim2.new(1, 0, 1, 0)
-Page.BackgroundTransparency = 1
-Page.BorderSizePixel = 0
-Page.ScrollBarThickness = 3
-Page.ScrollBarImageColor3 = Config.Accent
-Page.ScrollBarImageTransparency = 0.5
-Page.CanvasSize = UDim2.new(0, 0, 0, 0)
-Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Page.Parent = PageHolder
+    local sr1 = scriptForm:Row()
+    sr1.Left:TitleStack({ Title = "Rejoin Server", Subtitle = "Vào lại server" })
+    sr1.Right:Button({
+        Label = "Rejoin",
+        State = "Primary",
+        Pushed = function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end,
+    })
 
-local PageLayout = Instance.new("UIListLayout")
-PageLayout.Padding = UDim.new(0, 5)
-PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-PageLayout.Parent = Page
+    local sr2 = scriptForm:Row()
+    sr2.Left:TitleStack({ Title = "Unload Script", Subtitle = "Tắt hoàn toàn" })
+    sr2.Right:Button({
+        Label = "Unload",
+        State = "Destructive",
+        Pushed = function()
+            resetCharacterPhysics()
+            if App.Structures and App.Structures.WindowPill then
+                App.Structures.WindowPill:Destroy()
+            end
+        end,
+    })
 
-local PagePadding = Instance.new("UIPadding")
-PagePadding.PaddingTop = UDim.new(0, 4)
-PagePadding.PaddingBottom = UDim.new(0, 4)
-PagePadding.Parent = Page
+    local aboutSection = SettingsTab:PageSection({ Title = "About", Subtitle = "Thông tin" })
+    local aboutForm = aboutSection:Form()
+
+    local ar1 = aboutForm:Row()
+    ar1.Left:TitleStack({ Title = "Execute Hub", Subtitle = Config.Version })
+    ar1.Right:Label({ Text = "Cascade UI" })
+end
 
 -- ============================================================
 -- COORDINATE HUD
 -- ============================================================
+local CoordGui = Instance.new("ScreenGui")
+CoordGui.Name = "ExecuteHubHUD"
+CoordGui.ResetOnSpawn = false
+CoordGui.IgnoreGuiInset = true
+pcall(function() CoordGui.Parent = CoreGui end)
+if not CoordGui.Parent then CoordGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
 local CoordHUD = Instance.new("Frame")
-CoordHUD.Name = "CoordHUD"
 CoordHUD.Size = UDim2.new(0, 190, 0, 62)
 CoordHUD.Position = UDim2.new(1, -200, 0, 60)
-CoordHUD.BackgroundColor3 = Config.BgCard
-CoordHUD.BackgroundTransparency = 0.2
+CoordHUD.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+CoordHUD.BackgroundTransparency = 0.15
 CoordHUD.BorderSizePixel = 0
 CoordHUD.Active = true
 CoordHUD.Draggable = true
-CoordHUD.ZIndex = 100
-CoordHUD.Parent = ScreenGui
-
-local CoordCorner = Instance.new("UICorner")
-CoordCorner.CornerRadius = UDim.new(0, 8)
-CoordCorner.Parent = CoordHUD
-
-local CoordStroke = Instance.new("UIStroke")
-CoordStroke.Color = Config.Accent
-CoordStroke.Thickness = 1
-CoordStroke.Transparency = 0.5
-CoordStroke.Parent = CoordHUD
+CoordHUD.Parent = CoordGui
+local CHC = Instance.new("UICorner") CHC.CornerRadius = UDim.new(0, 8) CHC.Parent = CoordHUD
+local CHS = Instance.new("UIStroke") CHS.Color = Color3.fromRGB(255, 35, 45) CHS.Thickness = 1 CHS.Transparency = 0.5 CHS.Parent = CoordHUD
 
 local CoordTitle = Instance.new("TextLabel")
 CoordTitle.Size = UDim2.new(1, -12, 0, 14)
 CoordTitle.Position = UDim2.new(0, 6, 0, 4)
 CoordTitle.BackgroundTransparency = 1
 CoordTitle.Text = "📍 POSITION"
-CoordTitle.TextColor3 = Config.Accent
+CoordTitle.TextColor3 = Color3.fromRGB(255, 35, 45)
 CoordTitle.TextSize = 9
 CoordTitle.Font = Enum.Font.GothamBold
 CoordTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -577,7 +924,7 @@ CoordText.Size = UDim2.new(1, -12, 0, 18)
 CoordText.Position = UDim2.new(0, 6, 0, 18)
 CoordText.BackgroundTransparency = 1
 CoordText.Text = "X: 0.0   Y: 0.0\nZ: 0.0"
-CoordText.TextColor3 = Config.TextPrimary
+CoordText.TextColor3 = Color3.fromRGB(245, 245, 250)
 CoordText.TextSize = 10
 CoordText.Font = Enum.Font.Code
 CoordText.TextXAlignment = Enum.TextXAlignment.Left
@@ -589,7 +936,7 @@ StatsText.Size = UDim2.new(1, -12, 0, 12)
 StatsText.Position = UDim2.new(0, 6, 0, 44)
 StatsText.BackgroundTransparency = 1
 StatsText.Text = "FPS: --"
-StatsText.TextColor3 = Config.TextSecond
+StatsText.TextColor3 = Color3.fromRGB(160, 160, 175)
 StatsText.TextSize = 9
 StatsText.Font = Enum.Font.Code
 StatsText.TextXAlignment = Enum.TextXAlignment.Left
@@ -614,1101 +961,18 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    local fpsCounter = 0
-    local fpsTimer = 0
+    local c, t = 0, 0
     RunService.RenderStepped:Connect(function(dt)
-        fpsCounter = fpsCounter + 1
-        fpsTimer = fpsTimer + dt
-        if fpsTimer >= 0.5 then
-            StatsText.Text = string.format("FPS: %d", math.floor(fpsCounter / fpsTimer))
-            fpsCounter = 0
-            fpsTimer = 0
+        c = c + 1; t = t + dt
+        if t >= 0.5 then
+            StatsText.Text = string.format("FPS: %d", math.floor(c/t))
+            c = 0; t = 0
         end
     end)
 end)
 
 -- ============================================================
--- SECTION BUILDER
--- ============================================================
-local function createSection(parent, text)
-    local Sec = Instance.new("Frame")
-    Sec.Size = UDim2.new(1, 0, 0, 20)
-    Sec.BackgroundTransparency = 1
-    Sec.Parent = parent
-
-    local Icon = Instance.new("TextLabel")
-    Icon.Size = UDim2.new(0, 14, 0, 14)
-    Icon.Position = UDim2.new(0, 2, 0.5, -7)
-    Icon.BackgroundTransparency = 1
-    Icon.Text = "✦"
-    Icon.TextColor3 = Config.Accent
-    Icon.TextSize = 10
-    Icon.Font = Enum.Font.GothamBold
-    Icon.Parent = Sec
-
-    local Lbl = Instance.new("TextLabel")
-    Lbl.Size = UDim2.new(1, -22, 1, 0)
-    Lbl.Position = UDim2.new(0, 20, 0, 0)
-    Lbl.BackgroundTransparency = 1
-    Lbl.Text = text
-    Lbl.TextColor3 = Config.TextSecond
-    Lbl.TextSize = 10
-    Lbl.Font = Enum.Font.GothamBold
-    Lbl.TextXAlignment = Enum.TextXAlignment.Left
-    Lbl.Parent = Sec
-
-    return Sec
-end
-
--- ============================================================
--- TOGGLE WIDGET
--- ============================================================
-local function createToggle(parent, text, default, callback)
-    local Card = Instance.new("Frame")
-    Card.Size = UDim2.new(1, 0, 0, 32)
-    Card.BackgroundColor3 = Config.BgCard
-    Card.BackgroundTransparency = 0.4
-    Card.BorderSizePixel = 0
-    Card.Parent = parent
-
-    local CCorner = Instance.new("UICorner")
-    CCorner.CornerRadius = UDim.new(0, 6)
-    CCorner.Parent = Card
-
-    local CStroke = Instance.new("UIStroke")
-    CStroke.Color = Config.Border
-    CStroke.Thickness = 1
-    CStroke.Transparency = 0.92
-    CStroke.Parent = Card
-
-    local Lbl = Instance.new("TextLabel")
-    Lbl.Size = UDim2.new(1, -55, 1, 0)
-    Lbl.Position = UDim2.new(0, 10, 0, 0)
-    Lbl.BackgroundTransparency = 1
-    Lbl.Text = text
-    Lbl.TextColor3 = Config.TextPrimary
-    Lbl.TextSize = 10
-    Lbl.Font = Enum.Font.Gotham
-    Lbl.TextXAlignment = Enum.TextXAlignment.Left
-    Lbl.Parent = Card
-
-    local TBg = Instance.new("Frame")
-    TBg.Size = UDim2.new(0, 30, 0, 16)
-    TBg.Position = UDim2.new(1, -40, 0.5, -8)
-    TBg.BackgroundColor3 = default and Config.Accent or Color3.fromRGB(60, 60, 72)
-    TBg.BorderSizePixel = 0
-    TBg.Parent = Card
-
-    local TBgCorner = Instance.new("UICorner")
-    TBgCorner.CornerRadius = UDim.new(1, 0)
-    TBgCorner.Parent = TBg
-
-    local TBtn = Instance.new("TextButton")
-    TBtn.Size = UDim2.new(1, 0, 1, 0)
-    TBtn.BackgroundTransparency = 1
-    TBtn.Text = ""
-    TBtn.Parent = TBg
-
-    local Knob = Instance.new("Frame")
-    Knob.Size = UDim2.new(0, 12, 0, 12)
-    Knob.Position = default and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
-    Knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Knob.BorderSizePixel = 0
-    Knob.Parent = TBg
-
-    local KnobCorner = Instance.new("UICorner")
-    KnobCorner.CornerRadius = UDim.new(1, 0)
-    KnobCorner.Parent = Knob
-
-    local isOn = default
-
-    TBtn.MouseButton1Click:Connect(function()
-        isOn = not isOn
-        TweenService:Create(TBg, TweenInfo.new(0.15), {
-            BackgroundColor3 = isOn and Config.Accent or Color3.fromRGB(60, 60, 72)
-        }):Play()
-        TweenService:Create(Knob, TweenInfo.new(0.15), {
-            Position = isOn and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
-        }):Play()
-        if callback then callback(isOn) end
-    end)
-
-    return Card
-end
-
--- ============================================================
--- SLIDER WIDGET
--- ============================================================
-local function createSlider(parent, text, min, max, default, suffix, callback)
-    local Card = Instance.new("Frame")
-    Card.Size = UDim2.new(1, 0, 0, 44)
-    Card.BackgroundColor3 = Config.BgCard
-    Card.BackgroundTransparency = 0.4
-    Card.BorderSizePixel = 0
-    Card.Parent = parent
-
-    local CCorner = Instance.new("UICorner")
-    CCorner.CornerRadius = UDim.new(0, 6)
-    CCorner.Parent = Card
-
-    local CStroke = Instance.new("UIStroke")
-    CStroke.Color = Config.Border
-    CStroke.Thickness = 1
-    CStroke.Transparency = 0.92
-    CStroke.Parent = Card
-
-    local Lbl = Instance.new("TextLabel")
-    Lbl.Size = UDim2.new(1, -80, 0, 12)
-    Lbl.Position = UDim2.new(0, 10, 0, 6)
-    Lbl.BackgroundTransparency = 1
-    Lbl.Text = text
-    Lbl.TextColor3 = Config.TextPrimary
-    Lbl.TextSize = 10
-    Lbl.Font = Enum.Font.Gotham
-    Lbl.TextXAlignment = Enum.TextXAlignment.Left
-    Lbl.Parent = Card
-
-    local VLbl = Instance.new("TextLabel")
-    VLbl.Size = UDim2.new(0, 70, 0, 12)
-    VLbl.Position = UDim2.new(1, -80, 0, 6)
-    VLbl.BackgroundTransparency = 1
-    VLbl.Text = tostring(default) .. " " .. (suffix or "")
-    VLbl.TextColor3 = Config.TextSecond
-    VLbl.TextSize = 10
-    VLbl.Font = Enum.Font.GothamBold
-    VLbl.TextXAlignment = Enum.TextXAlignment.Right
-    VLbl.Parent = Card
-
-    local Bar = Instance.new("Frame")
-    Bar.Size = UDim2.new(1, -20, 0, 3)
-    Bar.Position = UDim2.new(0, 10, 0, 30)
-    Bar.BackgroundColor3 = Color3.fromRGB(60, 60, 72)
-    Bar.BorderSizePixel = 0
-    Bar.Parent = Card
-
-    local BarCorner = Instance.new("UICorner")
-    BarCorner.CornerRadius = UDim.new(1, 0)
-    BarCorner.Parent = Bar
-
-    local Fill = Instance.new("Frame")
-    Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    Fill.BackgroundColor3 = Config.Accent
-    Fill.BorderSizePixel = 0
-    Fill.Parent = Bar
-
-    local FillCorner = Instance.new("UICorner")
-    FillCorner.CornerRadius = UDim.new(1, 0)
-    FillCorner.Parent = Fill
-
-    local Dot = Instance.new("Frame")
-    Dot.Size = UDim2.new(0, 11, 0, 11)
-    Dot.Position = UDim2.new((default - min) / (max - min), -5.5, 0.5, -5.5)
-    Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Dot.BorderSizePixel = 0
-    Dot.Parent = Bar
-
-    local DotCorner = Instance.new("UICorner")
-    DotCorner.CornerRadius = UDim.new(1, 0)
-    DotCorner.Parent = Dot
-
-    local dragging = false
-    local function update(input)
-        local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
-        local value = math.floor(min + (max - min) * pos)
-        Fill.Size = UDim2.new(pos, 0, 1, 0)
-        Dot.Position = UDim2.new(pos, -5.5, 0.5, -5.5)
-        VLbl.Text = tostring(value) .. " " .. (suffix or "")
-        if callback then callback(value) end
-    end
-
-    Dot.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            update(input)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-    Bar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            update(input)
-            dragging = true
-        end
-    end)
-
-    return Card
-end
-
--- ============================================================
--- TEXT INPUT WIDGET
--- ============================================================
-local function createTextInput(parent, text, placeholder, default, callback)
-    local Card = Instance.new("Frame")
-    Card.Size = UDim2.new(1, 0, 0, 42)
-    Card.BackgroundColor3 = Config.BgCard
-    Card.BackgroundTransparency = 0.4
-    Card.BorderSizePixel = 0
-    Card.Parent = parent
-
-    local CCorner = Instance.new("UICorner")
-    CCorner.CornerRadius = UDim.new(0, 6)
-    CCorner.Parent = Card
-
-    local CStroke = Instance.new("UIStroke")
-    CStroke.Color = Config.Border
-    CStroke.Thickness = 1
-    CStroke.Transparency = 0.92
-    CStroke.Parent = Card
-
-    local Lbl = Instance.new("TextLabel")
-    Lbl.Size = UDim2.new(1, -20, 0, 12)
-    Lbl.Position = UDim2.new(0, 10, 0, 4)
-    Lbl.BackgroundTransparency = 1
-    Lbl.Text = text
-    Lbl.TextColor3 = Config.TextPrimary
-    Lbl.TextSize = 10
-    Lbl.Font = Enum.Font.Gotham
-    Lbl.TextXAlignment = Enum.TextXAlignment.Left
-    Lbl.Parent = Card
-
-    local Box = Instance.new("TextBox")
-    Box.Size = UDim2.new(1, -20, 0, 20)
-    Box.Position = UDim2.new(0, 10, 0, 18)
-    Box.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-    Box.BorderSizePixel = 0
-    Box.Text = default or ""
-    Box.PlaceholderText = placeholder or ""
-    Box.TextColor3 = Config.TextPrimary
-    Box.PlaceholderColor3 = Config.TextMuted
-    Box.TextSize = 10
-    Box.Font = Enum.Font.GothamBold
-    Box.TextXAlignment = Enum.TextXAlignment.Left
-    Box.ClearTextOnFocus = false
-    Box.Parent = Card
-
-    local BoxCorner = Instance.new("UICorner")
-    BoxCorner.CornerRadius = UDim.new(0, 4)
-    BoxCorner.Parent = Box
-
-    local BoxPad = Instance.new("UIPadding")
-    BoxPad.PaddingLeft = UDim.new(0, 6)
-    BoxPad.Parent = Box
-
-    Box.FocusLost:Connect(function()
-        if callback then callback(Box.Text) end
-    end)
-
-    return Card
-end
-
--- ============================================================
--- BUTTON WIDGET
--- ============================================================
-local function createButton(parent, text, callback, isAccent)
-    local B = Instance.new("TextButton")
-    B.Size = UDim2.new(1, 0, 0, 30)
-    B.BackgroundColor3 = isAccent and Config.Accent or Config.BgCard
-    B.BackgroundTransparency = isAccent and 0 or 0.4
-    B.Text = text
-    B.TextColor3 = Config.TextPrimary
-    B.TextSize = 10
-    B.Font = Enum.Font.GothamBold
-    B.BorderSizePixel = 0
-    B.AutoButtonColor = false
-    B.Parent = parent
-
-    local BCorner = Instance.new("UICorner")
-    BCorner.CornerRadius = UDim.new(0, 6)
-    BCorner.Parent = B
-
-    local BStroke = Instance.new("UIStroke")
-    BStroke.Color = isAccent and Config.Accent or Config.Border
-    BStroke.Thickness = 1
-    BStroke.Transparency = isAccent and 0.4 or 0.92
-    BStroke.Parent = B
-
-    B.MouseEnter:Connect(function()
-        TweenService:Create(B, TweenInfo.new(0.15), {
-            BackgroundColor3 = isAccent and Config.AccentHover or Config.BgHover,
-            BackgroundTransparency = isAccent and 0 or 0.2
-        }):Play()
-    end)
-    B.MouseLeave:Connect(function()
-        TweenService:Create(B, TweenInfo.new(0.15), {
-            BackgroundColor3 = isAccent and Config.Accent or Config.BgCard,
-            BackgroundTransparency = isAccent and 0 or 0.4
-        }):Play()
-    end)
-    B.MouseButton1Click:Connect(function()
-        if callback then callback() end
-    end)
-
-    return B
-end
-
--- ============================================================
--- NOTIFICATION
--- ============================================================
-function notify(text, isError)
-    local color = isError and Config.Accent or Config.Success
-    local N = Instance.new("Frame")
-    N.Size = UDim2.new(0, 260, 0, 44)
-    N.Position = UDim2.new(0.5, -130, 0, 20)
-    N.BackgroundColor3 = Config.BgCard
-    N.BackgroundTransparency = 0.1
-    N.BorderSizePixel = 0
-    N.ZIndex = 200
-    N.Parent = ScreenGui
-
-    local NC = Instance.new("UICorner")
-    NC.CornerRadius = UDim.new(0, 8)
-    NC.Parent = N
-
-    local NS = Instance.new("UIStroke")
-    NS.Color = color
-    NS.Thickness = 1.5
-    NS.Parent = N
-
-    local Bar = Instance.new("Frame")
-    Bar.Size = UDim2.new(0, 3, 1, -10)
-    Bar.Position = UDim2.new(0, 5, 0, 5)
-    Bar.BackgroundColor3 = color
-    Bar.BorderSizePixel = 0
-    Bar.Parent = N
-
-    local BC = Instance.new("UICorner")
-    BC.CornerRadius = UDim.new(1, 0)
-    BC.Parent = Bar
-
-    local T = Instance.new("TextLabel")
-    T.Size = UDim2.new(1, -25, 1, 0)
-    T.Position = UDim2.new(0, 16, 0, 0)
-    T.BackgroundTransparency = 1
-    T.Text = text
-    T.TextColor3 = color
-    T.TextSize = 10
-    T.Font = Enum.Font.GothamBold
-    T.TextWrapped = true
-    T.TextXAlignment = Enum.TextXAlignment.Left
-    T.Parent = N
-
-    task.spawn(function()
-        task.wait(2.5)
-        TweenService:Create(N, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-        TweenService:Create(T, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
-        TweenService:Create(NS, TweenInfo.new(0.4), {Transparency = 1}):Play()
-        TweenService:Create(Bar, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-        task.wait(0.4)
-        N:Destroy()
-    end)
-end
-
--- ============================================================
--- CLEAR PAGE
--- ============================================================
-local function clearPage()
-    for _, child in ipairs(Page:GetChildren()) do
-        if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
-            child:Destroy()
-        end
-    end
-end
-
--- ============================================================
--- BYPASS GATE SYSTEM
--- ============================================================
--- Tìm và vô hiệu hóa mọi barrier/gate yêu cầu quest/level/rebirth
-local bypassedGates = {}
-local bypassedCollisions = {}
-
-local function bypassAllGates()
-    local count = 0
-    local barrierKeywords = {
-        "gate", "barrier", "wall", "door", "block", "lock",
-        "required", "rebirth", "level", "quest", "unlock",
-        "invisible", "region", "zone", "portal"
-    }
-
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = string.lower(obj.Name)
-            local isBarrier = false
-            for _, kw in ipairs(barrierKeywords) do
-                if string.find(name, kw) then
-                    isBarrier = true
-                    break
-                end
-            end
-            if isBarrier then
-                pcall(function()
-                    obj.CanCollide = false
-                    obj.CanTouch = false
-                    obj.CanQuery = false
-                    obj.Transparency = 1
-                    obj.Massless = true
-                    if not bypassedGates[obj] then
-                        bypassedGates[obj] = true
-                        count = count + 1
-                    end
-                end)
-            end
-        elseif obj:IsA("Model") then
-            local name = string.lower(obj.Name)
-            for _, kw in ipairs(barrierKeywords) do
-                if string.find(name, kw) then
-                    for _, part in ipairs(obj:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            pcall(function()
-                                part.CanCollide = false
-                                part.CanTouch = false
-                                part.CanQuery = false
-                                part.Transparency = 1
-                                part.Massless = true
-                            end)
-                        end
-                    end
-                    count = count + 1
-                    break
-                end
-            end
-        end
-    end
-    return count
-end
-
--- Vô hiệu hóa mọi script server kiểm tra gate
-local function disableGateChecks()
-    local count = 0
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            local name = string.lower(obj.Name)
-            if string.find(name, "barrier") or string.find(name, "gate") 
-               or string.find(name, "door") or string.find(name, "block") then
-                for _, script in ipairs(obj:GetDescendants()) do
-                    if script:IsA("Script") or script:IsA("LocalScript") then
-                        pcall(function()
-                            script.Disabled = true
-                        end)
-                        count = count + 1
-                    end
-                end
-            end
-        end
-    end
-    return count
-end
-
--- Vô hiệu hóa mọi ProximityPrompt yêu cầu quest/level/rebirth
-local function bypassAllPrompts()
-    local count = 0
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            local actionText = string.lower(obj.ActionText or "")
-            local objectText = string.lower(obj.ObjectText or "")
-            local name = string.lower(obj.Name)
-            if string.find(actionText, "unlock") or string.find(actionText, "required")
-               or string.find(actionText, "rebirth") or string.find(actionText, "level")
-               or string.find(objectText, "required") or string.find(objectText, "locked")
-               or string.find(name, "gate") or string.find(name, "barrier") then
-                pcall(function()
-                    obj.HoldDuration = 0
-                    obj.MaxActivationDistance = 9999
-                    obj.RequiresLineOfSight = false
-                    obj.Enabled = true
-                end)
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
--- Fire tất cả prompt để mở khóa
-local function activateAllPrompts()
-    local count = 0
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then
-            pcall(function()
-                obj.HoldDuration = 0
-                obj.MaxActivationDistance = 9999
-                obj.RequiresLineOfSight = false
-                if fireproximityprompt then
-                    fireproximityprompt(obj)
-                    count = count + 1
-                end
-            end)
-        end
-    end
-    return count
-end
-
--- Teleport xuyên qua gate
-local function teleportThroughGate()
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-
-    -- Tìm gate gần nhất
-    local nearest = nil
-    local shortest = State.BypassRange
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = string.lower(obj.Name)
-            if string.find(name, "gate") or string.find(name, "barrier") 
-               or string.find(name, "door") or string.find(name, "wall") then
-                local dist = (obj.Position - hrp.Position).Magnitude
-                if dist < shortest then
-                    shortest = dist
-                    nearest = obj
-                end
-            end
-        end
-    end
-
-    if nearest then
-        -- Teleport xuyên qua gate
-        local forward = (nearest.Position - hrp.Position).Unit
-        local targetPos = nearest.Position + forward * 20
-        pcall(function()
-            hrp.CFrame = CFrame.new(targetPos)
-        end)
-        return true
-    end
-    return false
-end
-
--- Disable collision toàn bộ (đi xuyên mọi thứ)
-local function disableAllCollision()
-    local count = 0
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.CanCollide then
-            if obj.Parent ~= LocalPlayer.Character then
-                pcall(function()
-                    obj.CanCollide = false
-                    bypassedCollisions[obj] = obj.CanCollide
-                end)
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
--- Restore collision
-local function restoreAllCollision()
-    for obj, original in pairs(bypassedCollisions) do
-        if obj and obj.Parent then
-            pcall(function() obj.CanCollide = original end)
-        end
-    end
-    bypassedCollisions = {}
-end
-
--- ============================================================
--- PAGE: BYPASS
--- ============================================================
-local function buildBypassPage()
-    clearPage()
-    PageTitle.Text = "BYPASS"
-
-    createSection(Page, "Bypass Gate System")
-    createToggle(Page, "🚪 Bypass All Gates", State.BypassEnabled, function(v)
-        State.BypassEnabled = v
-        if v then
-            local count = bypassAllGates()
-            notify("Bypassed " .. count .. " gates", false)
-        else
-            notify("Bypass disabled", false)
-        end
-    end)
-    createSlider(Page, "Bypass Range", 50, 1000, State.BypassRange, "studs", function(v) State.BypassRange = v end)
-
-    createSection(Page, "Auto Actions")
-    createToggle(Page, "🔓 Remove All Collision", State.RemoveCollision, function(v)
-        State.RemoveCollision = v
-        if v then
-            local count = disableAllCollision()
-            notify("Removed " .. count .. " collisions", false)
-        else
-            restoreAllCollision()
-            notify("Collisions restored", false)
-        end
-    end)
-    createToggle(Page, "🎯 Auto Enter Locked Zones", State.AutoEnterLocked, function(v)
-        State.AutoEnterLocked = v
-    end)
-
-    createSection(Page, "Quick Actions")
-    createButton(Page, "🚪 Bypass All Gates Now", function()
-        local c1 = bypassAllGates()
-        local c2 = disableGateChecks()
-        local c3 = bypassAllPrompts()
-        notify("Gates: " .. c1 .. " | Checks: " .. c2 .. " | Prompts: " .. c3, false)
-    end, true)
-    createButton(Page, "🔓 Activate All Prompts", function()
-        local count = activateAllPrompts()
-        notify("Activated " .. count .. " prompts", false)
-    end)
-    createButton(Page, "🚀 Teleport Through Nearest Gate", function()
-        if teleportThroughGate() then
-            notify("Teleported through gate", false)
-        else
-            notify("No gate found nearby", true)
-        end
-    end)
-    createButton(Page, "🧹 Restore All Gates", function()
-        for obj, _ in pairs(bypassedGates) do
-            if obj and obj.Parent then
-                pcall(function()
-                    obj.CanCollide = true
-                    obj.CanTouch = true
-                    obj.CanQuery = true
-                    obj.Transparency = 0
-                end)
-            end
-        end
-        bypassedGates = {}
-        restoreAllCollision()
-        notify("All gates restored", false)
-    end)
-
-    createSection(Page, "Auto-Apply")
-    createToggle(Page, "Auto Bypass on Zone Change", State.BypassEnabled, function(v)
-        State.BypassEnabled = v
-    end)
-    createButton(Page, "🔄 Force Refresh Bypass", function()
-        bypassAllGates()
-        bypassAllPrompts()
-        if State.RemoveCollision then
-            disableAllCollision()
-        end
-        notify("Bypass refreshed", false)
-    end)
-end
-
--- ============================================================
--- PAGE: MOVEMENT
--- ============================================================
-local function buildMovementPage()
-    clearPage()
-    PageTitle.Text = "MOVEMENT"
-
-    createSection(Page, "Speed")
-    createToggle(Page, "Speed Hack", State.SpeedEnabled, function(v) State.SpeedEnabled = v end)
-    createSlider(Page, "Speed Value", 16, 500, State.SpeedValue, "WS", function(v) State.SpeedValue = v end)
-    createSlider(Page, "Max Speed Cap", 50, 500, State.MaxSpeed, "WS", function(v) State.MaxSpeed = v end)
-    createButton(Page, "⚡ Quick 100", function()
-        State.SpeedValue = 100
-        State.SpeedEnabled = true
-        notify("Speed = 100", false)
-    end)
-    createButton(Page, "⚡ Quick 200", function()
-        State.SpeedValue = 200
-        State.SpeedEnabled = true
-        notify("Speed = 200", false)
-    end)
-    createButton(Page, "🛑 Reset Speed", function()
-        State.SpeedValue = 16
-        State.SpeedEnabled = false
-        AntiBanState.currentRampSpeed = 16
-        resetCharacterPhysics()
-        notify("Speed reset", false)
-    end, true)
-
-    createSection(Page, "Fly")
-    createToggle(Page, "Fly", State.FlyEnabled, function(v) State.FlyEnabled = v end)
-    createSlider(Page, "Fly Speed", 30, 300, State.FlySpeed, "studs/s", function(v) State.FlySpeed = v end)
-
-    createSection(Page, "Movement Extras")
-    createToggle(Page, "Noclip", State.NoclipEnabled, function(v) State.NoclipEnabled = v end)
-    createToggle(Page, "Infinite Jump", State.InfJumpEnabled, function(v) State.InfJumpEnabled = v end)
-    createToggle(Page, "Anti-Fling", State.AntiFlingEnabled, function(v) State.AntiFlingEnabled = v end)
-    createToggle(Page, "Anti-Void", State.AntiVoidEnabled, function(v) State.AntiVoidEnabled = v end)
-    createToggle(Page, "Anti-AFK", State.AntiAfkEnabled, function(v) State.AntiAfkEnabled = v end)
-end
-
--- ============================================================
--- PAGE: SAVE / TELEPORT
--- ============================================================
-local SaveInputValue = "spot1"
-local TPInputValue = "0, 50, 0"
-
-local function buildSavePage()
-    clearPage()
-    PageTitle.Text = "SAVE / TELEPORT"
-
-    createSection(Page, "Save Position")
-    createTextInput(Page, "Save Name", "e.g. base, farm", SaveInputValue, function(v) SaveInputValue = v end)
-    createButton(Page, "💾 Save Current Position", function()
-        local char = LocalPlayer.Character
-        if not char then return notify("No character", true) end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return notify("No HRP", true) end
-        State.SavedPositions[SaveInputValue] = {
-            x = hrp.Position.X, y = hrp.Position.Y, z = hrp.Position.Z, time = os.time()
-        }
-        notify("Saved: " .. SaveInputValue, false)
-        buildSavePage()
-    end, true)
-
-    createSection(Page, "Saved Positions")
-    local hasAny = false
-    for name, pos in pairs(State.SavedPositions) do
-        hasAny = true
-        local Card = Instance.new("Frame")
-        Card.Size = UDim2.new(1, 0, 0, 44)
-        Card.BackgroundColor3 = Config.BgCard
-        Card.BackgroundTransparency = 0.4
-        Card.BorderSizePixel = 0
-        Card.Parent = Page
-
-        local CC = Instance.new("UICorner") CC.CornerRadius = UDim.new(0, 6) CC.Parent = Card
-        local CS = Instance.new("UIStroke") CS.Color = Config.Border CS.Thickness = 1 CS.Transparency = 0.92 CS.Parent = Card
-
-        local N = Instance.new("TextLabel")
-        N.Size = UDim2.new(1, -10, 0, 12)
-        N.Position = UDim2.new(0, 8, 0, 4)
-        N.BackgroundTransparency = 1
-        N.Text = name
-        N.TextColor3 = Config.TextPrimary
-        N.TextSize = 10
-        N.Font = Enum.Font.GothamBold
-        N.TextXAlignment = Enum.TextXAlignment.Left
-        N.Parent = Card
-
-        local P = Instance.new("TextLabel")
-        P.Size = UDim2.new(1, -10, 0, 10)
-        P.Position = UDim2.new(0, 8, 0, 16)
-        P.BackgroundTransparency = 1
-        P.Text = string.format("%.0f, %.0f, %.0f", pos.x, pos.y, pos.z)
-        P.TextColor3 = Config.TextMuted
-        P.TextSize = 8
-        P.Font = Enum.Font.Code
-        P.TextXAlignment = Enum.TextXAlignment.Left
-        P.Parent = Card
-
-        local TPBtn = Instance.new("TextButton")
-        TPBtn.Size = UDim2.new(0, 50, 0, 22)
-        TPBtn.Position = UDim2.new(1, -110, 0.5, -11)
-        TPBtn.BackgroundColor3 = Config.Accent
-        TPBtn.Text = "TP"
-        TPBtn.TextColor3 = Config.TextPrimary
-        TPBtn.TextSize = 9
-        TPBtn.Font = Enum.Font.GothamBold
-        TPBtn.BorderSizePixel = 0
-        TPBtn.AutoButtonColor = false
-        TPBtn.Parent = Card
-        local TPC = Instance.new("UICorner") TPC.CornerRadius = UDim.new(0, 4) TPC.Parent = TPBtn
-        TPBtn.MouseButton1Click:Connect(function()
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = CFrame.new(Vector3.new(pos.x, pos.y, pos.z))
-                    notify("Teleported to " .. name, false)
-                end
-            end
-        end)
-
-        local DBtn = Instance.new("TextButton")
-        DBtn.Size = UDim2.new(0, 50, 0, 22)
-        DBtn.Position = UDim2.new(1, -56, 0.5, -11)
-        DBtn.BackgroundColor3 = Config.BgCard
-        DBtn.Text = "DEL"
-        DBtn.TextColor3 = Config.TextPrimary
-        DBtn.TextSize = 9
-        DBtn.Font = Enum.Font.GothamBold
-        DBtn.BorderSizePixel = 0
-        DBtn.AutoButtonColor = false
-        DBtn.Parent = Card
-        local DC = Instance.new("UICorner") DC.CornerRadius = UDim.new(0, 4) DC.Parent = DBtn
-        DBtn.MouseButton1Click:Connect(function()
-            State.SavedPositions[name] = nil
-            notify("Deleted " .. name, false)
-            buildSavePage()
-        end)
-    end
-
-    if not hasAny then
-        local Empty = Instance.new("TextLabel")
-        Empty.Size = UDim2.new(1, 0, 0, 30)
-        Empty.BackgroundColor3 = Config.BgCard
-        Empty.BackgroundTransparency = 0.7
-        Empty.Text = "No saved positions"
-        Empty.TextColor3 = Config.TextMuted
-        Empty.TextSize = 10
-        Empty.Font = Enum.Font.Gotham
-        Empty.Parent = Page
-        local ECC = Instance.new("UICorner") ECC.CornerRadius = UDim.new(0, 6) ECC.Parent = Empty
-    end
-
-    createSection(Page, "Teleport to XYZ")
-    createTextInput(Page, "Coordinates (x, y, z)", "0, 50, 0", TPInputValue, function(v) TPInputValue = v end)
-    createButton(Page, "📍 Teleport to XYZ", function()
-        local coords = {}
-        for n in string.gmatch(TPInputValue, "[^,%s]+") do
-            table.insert(coords, tonumber(n))
-        end
-        if #coords == 3 and coords[1] and coords[2] and coords[3] then
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = CFrame.new(Vector3.new(coords[1], coords[2], coords[3]))
-                    notify("Teleported to XYZ", false)
-                end
-            end
-        else
-            notify("Invalid XYZ format", true)
-        end
-    end, true)
-
-    createSection(Page, "Quick Actions")
-    createButton(Page, "🏠 Teleport to Spawn", function()
-        local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
-        if spawn then
-            local char = LocalPlayer.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = CFrame.new(spawn.Position + Vector3.new(0, 5, 0))
-                    notify("Teleported to spawn", false)
-                end
-            end
-        end
-    end)
-    createButton(Page, "🔝 Teleport Up (+50Y)", function()
-        local char = LocalPlayer.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = hrp.CFrame + Vector3.new(0, 50, 0)
-                notify("Went up 50 studs", false)
-            end
-        end
-    end)
-end
-
--- ============================================================
--- PAGE: ANTI-BAN
--- ============================================================
-local function buildAntiBanPage()
-    clearPage()
-    PageTitle.Text = "ANTI-BAN"
-
-    createSection(Page, "Core")
-    createToggle(Page, "Anti-Ban System", State.AntiBanEnabled, function(v) State.AntiBanEnabled = v end)
-    createToggle(Page, "Jitter ±2", State.JitterEnabled, function(v) State.JitterEnabled = v end)
-    createToggle(Page, "Rate Limit 20Hz", State.RateLimitEnabled, function(v) State.RateLimitEnabled = v end)
-    createToggle(Page, "Ramp Up Smooth", State.RampUpEnabled, function(v) State.RampUpEnabled = v end)
-    createToggle(Page, "Legit Mode (cap 60)", State.LegitMode, function(v) State.LegitMode = v end)
-
-    createSection(Page, "Protection")
-    createToggle(Page, "Anti-Fling", State.AntiFlingEnabled, function(v) State.AntiFlingEnabled = v end)
-    createToggle(Page, "Anti-Void", State.AntiVoidEnabled, function(v) State.AntiVoidEnabled = v end)
-
-    createSection(Page, "Emergency")
-    createButton(Page, "🧹 Panic Cleanup", function()
-        resetCharacterPhysics()
-        State.SpeedEnabled = false
-        State.FlyEnabled = false
-        State.NoclipEnabled = false
-        State.AntiFlingEnabled = false
-        State.AntiVoidEnabled = false
-        State.BypassEnabled = false
-        State.RemoveCollision = false
-        AntiBanState.currentRampSpeed = 16
-        notify("Panic cleanup executed", false)
-    end, true)
-    createButton(Page, "🔧 Reset Physics", function()
-        resetCharacterPhysics()
-        notify("Physics reset", false)
-    end)
-
-    createSection(Page, "Diagnostics")
-    createButton(Page, "🔍 Test HTTP", function()
-        pcall(function()
-            local version = game:HttpGet(Config.UpdateURL)
-            version = string.gsub(version, "%s", "")
-            notify("Latest version: " .. version, false)
-        end)
-    end)
-    createButton(Page, "🔄 Force Update Script", function()
-        notify("Reloading script...", false)
-        task.wait(1)
-        loadstring(game:HttpGet(Config.ScriptURL))()
-    end, true)
-end
-
--- ============================================================
--- PAGE: SETTINGS
--- ============================================================
-local function buildSettingsPage()
-    clearPage()
-    PageTitle.Text = "SETTINGS"
-
-    createSection(Page, "Display")
-    createToggle(Page, "Show Coordinate HUD", State.ShowCoords, function(v) State.ShowCoords = v end)
-
-    createSection(Page, "Updates")
-    createToggle(Page, "Auto Update Check", State.AutoUpdateCheck, function(v) State.AutoUpdateCheck = v end)
-    createButton(Page, "🔄 Check for Updates", function()
-        checkForUpdates()
-        notify("Checking for updates...", false)
-    end)
-
-    createSection(Page, "Script")
-    createButton(Page, "Rejoin Server", function()
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
-    end)
-    createButton(Page, "Server Hop", function()
-        local servers = game:GetService("HttpService"):JSONDecode(
-            game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-        )
-        if servers and servers.data then
-            for _, s in ipairs(servers.data) do
-                if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
-                    break
-                end
-            end
-        end
-    end)
-    createButton(Page, "Unload Script", function()
-        resetCharacterPhysics()
-        ScreenGui:Destroy()
-    end, true)
-
-    createSection(Page, "About")
-    createButton(Page, "Execute Hub " .. Config.Version, function()
-        notify("Execute Hub " .. Config.Version, false)
-    end)
-end
-
--- ============================================================
--- TAB SYSTEM
--- ============================================================
-local Tabs = {}
-local ActiveTab = "Bypass"
-
-local tabDefs = {
-    {name = "Bypass",    icon = "🚪", builder = buildBypassPage},
-    {name = "Movement",  icon = "🏃", builder = buildMovementPage},
-    {name = "Save/TP",   icon = "📍", builder = buildSavePage},
-    {name = "Anti-Ban",  icon = "🛡️", builder = buildAntiBanPage},
-    {name = "Settings",  icon = "⚙️", builder = buildSettingsPage}
-}
-
-for i, def in ipairs(tabDefs) do
-    local Tab = Instance.new("TextButton")
-    Tab.Size = UDim2.new(1, -12, 0, 30)
-    Tab.Position = UDim2.new(0, 6, 0, 56 + ((i - 1) * 34))
-    Tab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Tab.BackgroundTransparency = 1
-    Tab.Text = "  " .. def.icon .. "  " .. def.name
-    Tab.TextColor3 = Config.TextSecond
-    Tab.TextSize = 11
-    Tab.Font = Enum.Font.GothamBold
-    Tab.TextXAlignment = Enum.TextXAlignment.Left
-    Tab.BorderSizePixel = 0
-    Tab.AutoButtonColor = false
-    Tab.Parent = Sidebar
-
-    local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 6)
-    TabCorner.Parent = Tab
-
-    local Indicator = Instance.new("Frame")
-    Indicator.Size = UDim2.new(0, 2, 0.55, 0)
-    Indicator.Position = UDim2.new(0, 0, 0.225, 0)
-    Indicator.BackgroundColor3 = Config.Accent
-    Indicator.BorderSizePixel = 0
-    Indicator.Visible = false
-    Indicator.Parent = Tab
-
-    local ICorner = Instance.new("UICorner")
-    ICorner.CornerRadius = UDim.new(1, 0)
-    ICorner.Parent = Indicator
-
-    Tabs[def.name] = {
-        Button = Tab,
-        Indicator = Indicator,
-        builder = def.builder
-    }
-
-    Tab.MouseButton1Click:Connect(function()
-        for _, t in pairs(Tabs) do
-            t.Button.BackgroundTransparency = 1
-            t.Button.TextColor3 = Config.TextSecond
-            t.Indicator.Visible = false
-        end
-        Tab.BackgroundTransparency = 0.5
-        Tab.TextColor3 = Config.TextPrimary
-        Indicator.Visible = true
-        ActiveTab = def.name
-        if def.builder then def.builder() end
-    end)
-
-    Tab.MouseEnter:Connect(function()
-        if ActiveTab ~= def.name then
-            TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundTransparency = 0.6}):Play()
-            TweenService:Create(Tab, TweenInfo.new(0.15), {TextColor3 = Config.TextPrimary}):Play()
-        end
-    end)
-    Tab.MouseLeave:Connect(function()
-        if ActiveTab ~= def.name then
-            TweenService:Create(Tab, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
-            TweenService:Create(Tab, TweenInfo.new(0.15), {TextColor3 = Config.TextSecond}):Play()
-        end
-    end)
-end
-
-if Tabs["Bypass"] then
-    Tabs["Bypass"].Button.BackgroundTransparency = 0.5
-    Tabs["Bypass"].Button.TextColor3 = Config.TextPrimary
-    Tabs["Bypass"].Indicator.Visible = true
-end
-buildBypassPage()
-
--- ============================================================
--- MIN / CLOSE / KEYBIND
--- ============================================================
-CloseBtn.MouseButton1Click:Connect(function()
-    resetCharacterPhysics()
-    ScreenGui:Destroy()
-end)
-
-local minimized = false
-MinBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        Main.Size = UDim2.new(0, Config.Width, 0, 40)
-        Sidebar.Visible = false
-        Content.Visible = false
-    else
-        Main.Size = UDim2.new(0, Config.Width, 0, Config.Height)
-        Sidebar.Visible = true
-        Content.Visible = true
-    end
-end)
-
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.RightControl then
-        Main.Visible = not Main.Visible
-    end
-end)
-
--- ============================================================
--- SPEED HACK LOOP
+-- CORE LOOPS
 -- ============================================================
 RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
@@ -1719,44 +983,34 @@ RunService.RenderStepped:Connect(function()
 
     if State.SpeedEnabled then
         if State.RateLimitEnabled then
-            AntiBanState.tickCounter = (AntiBanState.tickCounter + 1) % 3
-            if AntiBanState.tickCounter ~= 0 then return end
+            AntiBan.tickCounter = (AntiBan.tickCounter + 1) % 3
+            if AntiBan.tickCounter ~= 0 then return end
         end
-
         local target = State.SpeedValue
         if State.LegitMode then target = math.min(target, 60) end
         if target > State.MaxSpeed then target = State.MaxSpeed end
-
         if State.RampUpEnabled then
-            local diff = target - AntiBanState.currentRampSpeed
-            if math.abs(diff) > 0.5 then
-                AntiBanState.currentRampSpeed = AntiBanState.currentRampSpeed + diff * 0.05
-                target = math.floor(AntiBanState.currentRampSpeed)
+            local d = target - AntiBan.currentRampSpeed
+            if math.abs(d) > 0.5 then
+                AntiBan.currentRampSpeed = AntiBan.currentRampSpeed + d * 0.05
+                target = math.floor(AntiBan.currentRampSpeed)
             else
-                AntiBanState.currentRampSpeed = target
+                AntiBan.currentRampSpeed = target
             end
         end
-
-        local speed = target
+        local sp = target
         if State.JitterEnabled then
-            local jitter = math.random(-2, 2)
-            if math.random(1, 10) == 1 then jitter = 0 end
-            speed = target + jitter
+            local j = math.random(-2, 2)
+            if math.random(1, 10) == 1 then j = 0 end
+            sp = target + j
         end
-
-        pcall(function() hum.WalkSpeed = speed end)
-
+        pcall(function() hum.WalkSpeed = sp end)
         if hum.MoveDirection.Magnitude > 0.1 then
             local dir = hum.MoveDirection
-            pcall(function()
-                hrp.Velocity = Vector3.new(dir.X * speed, hrp.Velocity.Y, dir.Z * speed)
-            end)
+            pcall(function() hrp.Velocity = Vector3.new(dir.X * sp, hrp.Velocity.Y, dir.Z * sp) end)
         else
-            pcall(function()
-                hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
-            end)
+            pcall(function() hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0) end)
         end
-
         local bv = hrp:FindFirstChild("SpeedBV")
         if not bv then
             bv = Instance.new("BodyVelocity")
@@ -1766,64 +1020,43 @@ RunService.RenderStepped:Connect(function()
         end
         if hum.MoveDirection.Magnitude > 0.1 then
             local dir = hum.MoveDirection
-            bv.Velocity = Vector3.new(dir.X * speed, 0, dir.Z * speed)
+            bv.Velocity = Vector3.new(dir.X * sp, 0, dir.Z * sp)
         else
             bv.Velocity = Vector3.new(0, 0, 0)
         end
     else
         pcall(function() hum.WalkSpeed = 16 end)
-        pcall(function()
-            hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0)
-        end)
+        pcall(function() hrp.Velocity = Vector3.new(0, hrp.Velocity.Y, 0) end)
         local bv = hrp:FindFirstChild("SpeedBV")
         if bv then bv:Destroy() end
     end
 end)
 
-task.spawn(function()
-    while task.wait(0.5) do
-        cleanupSpeedInstances()
-    end
-end)
+task.spawn(function() while task.wait(0.5) do cleanupSpeedInstances() end end)
 
--- ============================================================
--- BYPASS LOOP (auto re-apply)
--- ============================================================
 task.spawn(function()
     while task.wait(2) do
         if State.BypassEnabled then
             pcall(bypassAllGates)
             pcall(bypassAllPrompts)
         end
-        if State.RemoveCollision then
-            pcall(disableAllCollision)
-        end
+        if State.RemoveCollision then pcall(disableAllCollision) end
     end
 end)
 
--- ============================================================
--- AUTO ENTER LOCKED ZONES
--- ============================================================
 task.spawn(function()
     while task.wait(3) do
-        if State.AutoEnterLocked and State.BypassEnabled then
-            pcall(teleportThroughGate)
-        end
+        if State.AutoEnterLocked and State.BypassEnabled then pcall(teleportThroughGate) end
     end
 end)
 
--- ============================================================
--- ANTI-FLING / ANTI-VOID
--- ============================================================
 task.spawn(function()
     while task.wait(0.1) do
         local char = LocalPlayer.Character
         if char then
             local hrp = char:FindFirstChild("HumanoidRootPart")
             if State.AntiFlingEnabled and hrp then
-                pcall(function()
-                    hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-                end)
+                pcall(function() hrp.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1) end)
             end
             if State.AntiVoidEnabled and hrp and hrp.Position.Y < -50 then
                 pcall(function() hrp.CFrame = CFrame.new(0, 50, 0) end)
@@ -1832,57 +1065,40 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- NOCLIP
--- ============================================================
 task.spawn(function()
     while task.wait(0.2) do
         if State.NoclipEnabled then
             local char = LocalPlayer.Character
             if char then
                 for _, p in ipairs(char:GetDescendants()) do
-                    if p:IsA("BasePart") then
-                        pcall(function() p.CanCollide = false end)
-                    end
+                    if p:IsA("BasePart") then pcall(function() p.CanCollide = false end) end
                 end
             end
         end
     end
 end)
 
--- ============================================================
--- FLY
--- ============================================================
-local flyConn = nil
-local flyCleanup = nil
-
+-- Fly
+local flyConn, flyCleanup
 local function startFly()
     local char = LocalPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
-
-    local oldBV = hrp:FindFirstChild("FlyBV")
-    if oldBV then oldBV:Destroy() end
-    local oldBG = hrp:FindFirstChild("FlyBG")
-    if oldBG then oldBG:Destroy() end
-
+    local oldBV = hrp:FindFirstChild("FlyBV"); if oldBV then oldBV:Destroy() end
+    local oldBG = hrp:FindFirstChild("FlyBG"); if oldBG then oldBG:Destroy() end
     local bv = Instance.new("BodyVelocity")
     bv.Name = "FlyBV"
     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bv.Velocity = Vector3.new(0, 0, 0)
     bv.Parent = hrp
-
     local bg = Instance.new("BodyGyro")
     bg.Name = "FlyBG"
     bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bg.P = 10000
-    bg.D = 500
+    bg.P = 10000; bg.D = 500
     bg.Parent = hrp
-
     hum.PlatformStand = true
-
     flyConn = RunService.RenderStepped:Connect(function()
         local cam = workspace.CurrentCamera
         if not cam then return end
@@ -1893,14 +1109,13 @@ local function startFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0, 1, 0) end
-        local speed = State.FlySpeed or 60
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2 end
-        bv.Velocity = dir * speed
+        local sp = State.FlySpeed or 60
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then sp = sp * 2 end
+        bv.Velocity = dir * sp
         bg.CFrame = cam.CFrame
     end)
-
     flyCleanup = function()
-        if flyConn then flyConn:Disconnect() flyConn = nil end
+        if flyConn then flyConn:Disconnect(); flyConn = nil end
         if bv and bv.Parent then bv:Destroy() end
         if bg and bg.Parent then bg:Destroy() end
         if hum then hum.PlatformStand = false end
@@ -1908,16 +1123,12 @@ local function startFly()
 end
 
 RunService.Heartbeat:Connect(function()
-    if State.FlyEnabled and not flyConn then
-        startFly()
+    if State.FlyEnabled and not flyConn then startFly()
     elseif not State.FlyEnabled and flyConn then
         if flyCleanup then flyCleanup() end
     end
 end)
 
--- ============================================================
--- INFINITE JUMP
--- ============================================================
 UserInputService.JumpRequest:Connect(function()
     if State.InfJumpEnabled then
         local char = LocalPlayer.Character
@@ -1928,9 +1139,6 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- ============================================================
--- ANTI-AFK
--- ============================================================
 LocalPlayer.Idled:Connect(function()
     if State.AntiAfkEnabled then
         VirtualUser:CaptureController()
@@ -1938,17 +1146,10 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- ============================================================
--- RESPAWN
--- ============================================================
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
-    if flyCleanup then
-        flyCleanup()
-        flyConn = nil
-        flyCleanup = nil
-    end
-    AntiBanState.currentRampSpeed = 16
+    if flyCleanup then flyCleanup(); flyConn = nil; flyCleanup = nil end
+    AntiBan.currentRampSpeed = 16
     task.wait(2)
     if State.BypassEnabled then
         pcall(bypassAllGates)
@@ -1959,17 +1160,10 @@ end)
 -- ============================================================
 -- STARTUP
 -- ============================================================
-task.wait(1)
-notify(Config.Title .. " " .. Config.Version .. " loaded", false)
-
-print("[EXECUTE HUB] " .. Config.Version .. " loaded")
+print("[EXECUTE HUB] " .. Config.Version .. " loaded (Cascade UI)")
 print("[EXECUTE HUB] User: " .. LocalPlayer.Name)
-print("[EXECUTE HUB] Place: " .. game.PlaceId)
 print("[EXECUTE HUB] Tabs: Bypass, Movement, Save/TP, Anti-Ban, Settings")
-print("[EXECUTE HUB] Right Ctrl = toggle UI")
-print("[EXECUTE HUB] Coordinate HUD: ON (draggable)")
 
--- Check for updates on startup
 task.spawn(function()
     task.wait(3)
     checkForUpdates()
